@@ -1,0 +1,68 @@
+name: Build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: List all files (locate pubspec.yaml)
+        run: |
+          echo "=== 递归列出仓库中的所有文件 ==="
+          ls -R
+
+      - name: Find project root (WORKING_DIR)
+        id: find_project
+        run: |
+          PUBSPEC_PATH=$(find . -name "pubspec.yaml" -type f 2>/dev/null | head -1)
+          if [ -z "$PUBSPEC_PATH" ]; then
+            echo "::error::未找到 pubspec.yaml 文件"
+            exit 1
+          fi
+          WORKING_DIR=$(dirname "$PUBSPEC_PATH")
+          # 规范化路径：根目录时为 "."
+          if [ "$WORKING_DIR" = "." ]; then
+            APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          else
+            APK_PATH="${WORKING_DIR}/build/app/outputs/flutter-apk/app-release.apk"
+          fi
+          echo "working_dir=$WORKING_DIR" >> $GITHUB_OUTPUT
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "✅ 找到 pubspec.yaml 于: $PUBSPEC_PATH"
+          echo "✅ 工作目录 WORKING_DIR: $WORKING_DIR"
+          echo "✅ APK 输出路径: $APK_PATH"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        working-directory: ${{ steps.find_project.outputs.working_dir }}
+        run: flutter pub get
+
+      - name: Build APK
+        working-directory: ${{ steps.find_project.outputs.working_dir }}
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: ${{ steps.find_project.outputs.apk_path }}

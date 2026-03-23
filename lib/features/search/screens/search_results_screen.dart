@@ -65,6 +65,15 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
     ref.invalidate(searchResultsProvider(keyword));
   }
 
+  Future<void> _onRefreshSearch(String keyword) async {
+    await Future.delayed(const Duration(seconds: 1));
+    ref.invalidate(searchResultsProvider(keyword));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('搜索结果已更新')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final keyword = _searchController.text.trim().isEmpty
@@ -107,9 +116,18 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen>
                 posts: state.posts,
                 providers: state.providers,
                 keyword: keyword,
+                onRefresh: () => _onRefreshSearch(keyword),
               ),
-              _ProvidersTab(providers: state.providers, keyword: keyword),
-              _PostsTab(posts: state.posts, keyword: keyword),
+              _ProvidersTab(
+                providers: state.providers,
+                keyword: keyword,
+                onRefresh: () => _onRefreshSearch(keyword),
+              ),
+              _PostsTab(
+                posts: state.posts,
+                keyword: keyword,
+                onRefresh: () => _onRefreshSearch(keyword),
+              ),
             ],
           ),
           loading: () => const _LoadingView(),
@@ -259,21 +277,36 @@ class _MixedTab extends StatelessWidget {
     required this.posts,
     required this.providers,
     required this.keyword,
+    required this.onRefresh,
   });
 
   final List<Post> posts;
   final List<ProviderSummary> providers;
   final String keyword;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
     if (posts.isEmpty && providers.isEmpty) {
-      return _EmptyView(keyword: keyword);
+      return RefreshIndicator(
+        color: AppTheme.primary,
+        onRefresh: onRefresh,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height - 200,
+            child: _EmptyView(keyword: keyword),
+          ),
+        ),
+      );
     }
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
+    return RefreshIndicator(
+      color: AppTheme.primary,
+        onRefresh: onRefresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
         if (providers.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: Column(
@@ -332,6 +365,7 @@ class _MixedTab extends StatelessWidget {
           ),
         ],
       ],
+    ),
     );
   }
 }
@@ -341,29 +375,45 @@ class _ProvidersTab extends StatelessWidget {
   const _ProvidersTab({
     required this.providers,
     required this.keyword,
+    required this.onRefresh,
   });
 
   final List<ProviderSummary> providers;
   final String keyword;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
     if (providers.isEmpty) {
-      return _EmptyView(keyword: keyword);
+      return RefreshIndicator(
+        color: AppTheme.primary,
+        onRefresh: onRefresh,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height - 200,
+            child: _EmptyView(keyword: keyword),
+          ),
+        ),
+      );
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-      child: GridView.builder(
-        physics: const BouncingScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.72,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
+    return RefreshIndicator(
+      color: AppTheme.primary,
+      onRefresh: onRefresh,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+        child: GridView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 0.72,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+          ),
+          itemCount: providers.length,
+          itemBuilder: (_, i) => _ProviderCard(provider: providers[i]),
         ),
-        itemCount: providers.length,
-        itemBuilder: (_, i) => _ProviderCard(provider: providers[i]),
       ),
     );
   }
@@ -374,20 +424,35 @@ class _PostsTab extends StatelessWidget {
   const _PostsTab({
     required this.posts,
     required this.keyword,
+    required this.onRefresh,
   });
 
   final List<Post> posts;
   final String keyword;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
     if (posts.isEmpty) {
-      return _EmptyView(keyword: keyword);
+      return RefreshIndicator(
+        color: AppTheme.primary,
+        onRefresh: onRefresh,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height - 200,
+            child: _EmptyView(keyword: keyword),
+          ),
+        ),
+      );
     }
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
+    return RefreshIndicator(
+      color: AppTheme.primary,
+      onRefresh: onRefresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
           sliver: SliverMasonryGrid.count(
@@ -400,6 +465,7 @@ class _PostsTab extends StatelessWidget {
           ),
         ),
       ],
+    ),
     );
   }
 }

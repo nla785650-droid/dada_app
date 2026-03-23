@@ -30,9 +30,8 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // 初始化 Supabase（占位模式：URL 未配置时跳过，使用本地 Mock 数据）
-  // 正式接入时将 app_constants.dart 中的占位符替换为真实项目 URL
-  if (!AppConstants.supabaseUrl.startsWith('YOUR_')) {
+  // 初始化 Supabase（占位模式：URL 未配置时使用占位实例，方便本地 Demo）
+  if (AppConstants.isSupabaseConfigured) {
     await Supabase.initialize(
       url: AppConstants.supabaseUrl,
       anonKey: AppConstants.supabaseAnonKey,

@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/providers/supabase_provider.dart';
+import '../../../shared/services/supabase_service.dart';
 import '../../../data/models/provider_application_model.dart';
 import '../../become_provider/screens/become_provider_screen.dart';
 import '../../verification/screens/verification_screen.dart';
 import '../../verification/widgets/verified_badge.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   // 模拟当前用户数据（接入 Supabase 后替换）
@@ -16,7 +21,59 @@ class ProfileScreen extends StatelessWidget {
   static const _mockVerificationStatus = VerificationStatus.unapplied;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+
+    // 仅当 Supabase 已配置且未登录时，显示登录引导
+    // Demo 模式（占位 Supabase）始终展示完整个人中心
+    if (AppConstants.isSupabaseConfigured && user == null) {
+      return Scaffold(
+        backgroundColor: AppTheme.surface,
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('👋', style: TextStyle(fontSize: 64)),
+                const SizedBox(height: 16),
+                const Text(
+                  '登录后享受完整功能',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '订单、收藏、达人入驻...',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                FilledButton(
+                  onPressed: () => context.push('/login'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text('登录 / 注册'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppTheme.surface,
       body: CustomScrollView(
@@ -205,7 +262,7 @@ class ProfileScreen extends StatelessWidget {
               icon: Icons.star_rounded,
               label: '我的评价',
               color: AppTheme.warning,
-              onTap: () {},
+              onTap: () => context.push('/provider-reviews'),
             ),
           ],
         ),
@@ -237,13 +294,13 @@ class ProfileScreen extends StatelessWidget {
               icon: Icons.add_business_rounded,
               label: '发布服务',
               color: AppTheme.success,
-              onTap: () {},
+              onTap: () => context.go('/publish'),
             ),
             _MenuItemData(
               icon: Icons.bar_chart_rounded,
               label: '数据中心',
               color: const Color(0xFF3498DB),
-              onTap: () {},
+              onTap: () => context.push('/dashboard'),
             ),
           ],
         ),
@@ -254,26 +311,63 @@ class ProfileScreen extends StatelessWidget {
               icon: Icons.notifications_rounded,
               label: '消息通知',
               color: AppTheme.onSurfaceVariant,
-              onTap: () {},
+              onTap: () => context.go('/chat'),
             ),
             _MenuItemData(
               icon: Icons.security_rounded,
               label: '隐私设置',
               color: AppTheme.onSurfaceVariant,
-              onTap: () {},
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('隐私设置即将上线'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
             ),
             _MenuItemData(
               icon: Icons.help_outline_rounded,
               label: '帮助与反馈',
               color: AppTheme.onSurfaceVariant,
-              onTap: () {},
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('帮助与反馈即将上线'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
             ),
           ],
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: OutlinedButton(
-            onPressed: () {},
+            onPressed: () async {
+              try {
+                await SupabaseService.signOut();
+                if (context.mounted) {
+                  context.go('/login');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('已退出登录'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('退出失败'),
+                      behavior: SnackBarBehavior.floating,
+                      backgroundColor: AppTheme.error,
+                    ),
+                  );
+                }
+              }
+            },
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
               foregroundColor: AppTheme.error,

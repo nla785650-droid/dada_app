@@ -56,7 +56,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: RefreshIndicator(
         color: AppTheme.primary,
         onRefresh: () async {
-          ref.read(homePostsProvider.notifier).refresh();
+          await Future.delayed(const Duration(seconds: 1));
+          await ref.read(homePostsProvider.notifier).refresh();
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('已为你推荐最新内容')),
+          );
         },
         child: CustomScrollView(
           controller: _scrollController,

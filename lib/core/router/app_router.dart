@@ -10,7 +10,10 @@ import '../../features/discover/screens/my_likes_screen.dart';
 import '../../data/models/post_model.dart';
 import '../../features/discover/screens/discover_screen.dart';
 import '../../features/ai_lab/screens/ai_lab_screen.dart';
+import '../../features/auth/screens/login_screen.dart';
+import '../../features/auth/screens/signup_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
+import '../../features/chat/screens/chat_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/fulfillment/screens/fulfillment_screen.dart';
 import '../../features/payment/screens/payment_mock_screen.dart';
@@ -51,7 +54,11 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/home',
     debugLogDiagnostics: false,
-
+    redirect: (context, state) {
+      // 仅当 Supabase 已配置且未登录时，访问需认证页面则跳转登录
+      // Demo 模式（占位 Supabase）不强制登录
+      return null;
+    },
     errorBuilder: (context, state) => _ErrorPage(error: '${state.error}'),
 
     routes: [
@@ -127,7 +134,46 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
+      // ── 认证（全屏，无底部导航）──
+      GoRoute(
+        path: '/login',
+        name: 'login',
+        pageBuilder: (_, __) => const NoTransitionPage(
+          child: LoginScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/signup',
+        name: 'signup',
+        pageBuilder: (_, __) => CustomTransitionPage(
+          child: const SignUpScreen(),
+          transitionsBuilder: (_, animation, __, child) =>
+              _slideRightTransition(animation, child),
+        ),
+      ),
+
       // ── 全屏路由 ──
+
+      // 聊天详情（需传入对方信息）
+      GoRoute(
+        path: '/chat/:otherId',
+        name: 'chatDetail',
+        pageBuilder: (context, state) {
+          final otherId = state.pathParameters['otherId']!;
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          return CustomTransitionPage(
+            child: ChatScreen(
+              currentUserId: extra['currentUserId'] as String? ?? 'current_user',
+              otherUserId: otherId,
+              otherUserName: extra['otherUserName'] as String? ?? '用户',
+              otherUserAvatar: extra['otherUserAvatar'] as String?,
+              isProvider: extra['isProvider'] as bool? ?? false,
+            ),
+            transitionsBuilder: (_, animation, __, child) =>
+                _slideRightTransition(animation, child),
+          );
+        },
+      ),
 
       // 达人主页（Hero 动画目标）
       GoRoute(

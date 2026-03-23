@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../../core/theme/app_theme.dart';
 
-class ChatListScreen extends StatelessWidget {
+class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
+
+  @override
+  State<ChatListScreen> createState() => _ChatListScreenState();
+}
+
+class _ChatListScreenState extends State<ChatListScreen> {
+  static const _mockUserId = 'current_user';
 
   final _mockChats = const [
     _ChatItem(
+      id: 'user_sakura',
       name: '小樱',
       avatar: '🌸',
       lastMessage: '好的，那我们约好了！期待见面～',
@@ -13,6 +23,7 @@ class ChatListScreen extends StatelessWidget {
       unread: 2,
     ),
     _ChatItem(
+      id: 'user_star',
       name: '星野摄影工作室',
       avatar: '📸',
       lastMessage: '已收到您的预约，请等待确认',
@@ -20,6 +31,7 @@ class ChatListScreen extends StatelessWidget {
       unread: 0,
     ),
     _ChatItem(
+      id: 'user_suzumiya',
       name: '凉宫',
       avatar: '🎮',
       lastMessage: '今晚几点开始？',
@@ -27,6 +39,7 @@ class ChatListScreen extends StatelessWidget {
       unread: 1,
     ),
     _ChatItem(
+      id: 'user_ayanami',
       name: '绫波Cos',
       avatar: '🎭',
       lastMessage: '感谢您的好评！',
@@ -48,17 +61,38 @@ class ChatListScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: _mockChats.length,
-        separatorBuilder: (_, __) => const Divider(
-          height: 1,
-          indent: 76,
-          color: AppTheme.divider,
-        ),
-        itemBuilder: (context, index) {
-          return _ChatTile(item: _mockChats[index]);
+      body: RefreshIndicator(
+        color: AppTheme.primary,
+        onRefresh: () async {
+          await Future.delayed(const Duration(seconds: 1));
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('聊天记录已同步')),
+          );
         },
+        child: ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: _mockChats.length,
+          separatorBuilder: (_, __) => const Divider(
+            height: 1,
+            indent: 76,
+            color: AppTheme.divider,
+          ),
+          itemBuilder: (context, index) {
+            return _ChatTile(
+              item: _mockChats[index],
+              onTap: () => context.push(
+                '/chat/${_mockChats[index].id}',
+                extra: {
+                  'currentUserId': _mockUserId,
+                  'otherUserName': _mockChats[index].name,
+                  'otherUserAvatar': null,
+                },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -66,6 +100,7 @@ class ChatListScreen extends StatelessWidget {
 
 class _ChatItem {
   const _ChatItem({
+    required this.id,
     required this.name,
     required this.avatar,
     required this.lastMessage,
@@ -73,6 +108,7 @@ class _ChatItem {
     required this.unread,
   });
 
+  final String id;
   final String name;
   final String avatar;
   final String lastMessage;
@@ -81,9 +117,10 @@ class _ChatItem {
 }
 
 class _ChatTile extends StatelessWidget {
-  const _ChatTile({required this.item});
+  const _ChatTile({required this.item, required this.onTap});
 
   final _ChatItem item;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +185,7 @@ class _ChatTile extends StatelessWidget {
           ],
         ],
       ),
-      onTap: () {},
+      onTap: onTap,
     );
   }
 }

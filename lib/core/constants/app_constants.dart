@@ -1,9 +1,18 @@
 class AppConstants {
   AppConstants._();
 
-  // Supabase 配置 - 替换为你的项目 URL 和 anon key
-  static const supabaseUrl = 'YOUR_SUPABASE_URL';
-  static const supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+  // Supabase 配置
+  // 方式 1：编译时 --dart-define=SUPABASE_URL=xxx --dart-define=SUPABASE_ANON_KEY=xxx
+  // 方式 2：替换 defaultValue 为真实值
+  static const supabaseUrl =
+      String.fromEnvironment('SUPABASE_URL', defaultValue: 'YOUR_SUPABASE_URL');
+  static const supabaseAnonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue: 'YOUR_SUPABASE_ANON_KEY',
+  );
+
+  static bool get isSupabaseConfigured =>
+      !supabaseUrl.startsWith('YOUR_') && !supabaseAnonKey.startsWith('YOUR_');
 
   // 应用信息
   static const appName = '搭哒';
