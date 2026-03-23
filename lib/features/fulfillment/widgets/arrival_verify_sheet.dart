@@ -63,28 +63,50 @@ class _ArrivalVerifySheetState extends State<ArrivalVerifySheet>
     _initCamera();
   }
 
+  bool _hasError = false;
+  String _errorMsg = '';
+
   Future<void> _initCamera() async {
-    final granted = await CameraService.requestCameraPermission();
-    if (!granted) {
-      if (mounted) Navigator.pop(context);
-      return;
-    }
-
-    // 优先使用后置摄像头（实地打卡，后置更真实可信）
-    final camera = CameraService.getBackCamera() ?? CameraService.getFrontCamera();
-    if (camera == null) {
-      if (mounted) Navigator.pop(context);
-      return;
-    }
-
-    final ctrl = CameraController(
-      camera,
-      ResolutionPreset.high,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
+    setState(() {
+      _isInitializing = true;
+      _hasError = false;
+      _errorMsg = '';
+    });
 
     try {
+      final granted = await CameraService.requestCameraPermission();
+      if (!granted) {
+        if (mounted) {
+          setState(() {
+            _hasError = true;
+            _errorMsg = '请允许浏览器访问相机以进行认证';
+            _isInitializing = false;
+          });
+        }
+        return;
+      }
+
+      await CameraService.ensureCamerasLoaded();
+      final camera =
+          CameraService.getBackCamera() ?? CameraService.getFrontCamera();
+      if (camera == null) {
+        if (mounted) {
+          setState(() {
+            _hasError = true;
+            _errorMsg = '请允许浏览器访问相机以进行认证';
+            _isInitializing = false;
+          });
+        }
+        return;
+      }
+
+      final ctrl = CameraController(
+        camera,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+
       await ctrl.initialize();
       if (mounted) {
         setState(() {
@@ -94,10 +116,11 @@ class _ArrivalVerifySheetState extends State<ArrivalVerifySheet>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('相机初始化失败: $e')),
-        );
-        Navigator.pop(context);
+        setState(() {
+          _hasError = true;
+          _errorMsg = '请允许浏览器访问相机以进行认证';
+          _isInitializing = false;
+        });
       }
     }
   }
@@ -150,6 +173,45 @@ class _ArrivalVerifySheetState extends State<ArrivalVerifySheet>
     }
   }
 
+  Widget _buildCameraErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.camera_alt_outlined,
+                size: 56, color: Colors.white54),
+            const SizedBox(height: 20),
+            Text(
+              _errorMsg.isNotEmpty ? _errorMsg : '请允许浏览器访问相机以进行认证',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 28),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('取消'),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  onPressed: () => _initCamera(),
+                  child: const Text('重试'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _retake() {
     _capturedFile?.delete().ignore();
     _watermarkedFile?.delete().ignore();
@@ -187,6 +249,9 @@ class _ArrivalVerifySheetState extends State<ArrivalVerifySheet>
   }
 
   Widget _buildCamera(MediaQueryData mq) {
+    if (_hasError) {
+      return _buildCameraErrorView();
+    }
     if (_isInitializing || _controller == null) {
       return const Center(
         child: CircularProgressIndicator(color: Colors.white),

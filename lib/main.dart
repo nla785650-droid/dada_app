@@ -6,15 +6,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/constants/app_constants.dart';
-import 'shared/services/camera_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 预初始化相机列表（非阻塞，失败时运行时再查）
-  try {
-    await initCameras();
-  } catch (_) {}
+  // 相机延迟初始化：仅在用户进入真身认证页并点击「开始认证」后触发
 
   // 设置状态栏样式
   SystemChrome.setSystemUIOverlayStyle(

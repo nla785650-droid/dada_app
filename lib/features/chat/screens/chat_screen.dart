@@ -86,25 +86,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onCapture: () => _openRealtimeCamera(context),
               onDismiss: _notifier.dismissPhotoRequest,
             ),
-          // 消息列表
+          // 消息列表（下拉刷新加载历史记录）
           Expanded(
             child: chatState.isLoading
                 ? const Center(
                     child: CircularProgressIndicator(color: AppTheme.primary))
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    itemCount: chatState.messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = chatState.messages[index];
-                      final isMine = msg.isSentBy(widget.currentUserId);
-                      return _MessageBubble(
-                        message: msg,
-                        isMine: isMine,
-                        otherName: widget.otherUserName,
-                        otherAvatar: widget.otherUserAvatar,
+                : RefreshIndicator(
+                    color: AppTheme.primary,
+                    onRefresh: () async {
+                      await Future.delayed(const Duration(seconds: 1));
+                      ref.invalidate(chatProvider((
+                        currentUserId: widget.currentUserId,
+                        otherUserId: widget.otherUserId,
+                      )));
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('历史记录已加载')),
                       );
                     },
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      itemCount: chatState.messages.length,
+                      itemBuilder: (context, index) {
+                        final msg = chatState.messages[index];
+                        final isMine = msg.isSentBy(widget.currentUserId);
+                        return _MessageBubble(
+                          message: msg,
+                          isMine: isMine,
+                          otherName: widget.otherUserName,
+                          otherAvatar: widget.otherUserAvatar,
+                        );
+                      },
+                    ),
                   ),
           ),
           // 输入区

@@ -8,16 +8,20 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-/// 全局可用的相机列表，在 main 中初始化
+/// 全局可用的相机列表，首次使用时延迟加载
 List<CameraDescription> availableCameraList = [];
-
-/// 初始化相机列表（在 main 中调用）
-Future<void> initCameras() async {
-  availableCameraList = await availableCameras();
-}
+bool _camerasLoaded = false;
 
 class CameraService {
   CameraService._();
+
+  /// 延迟初始化相机列表：仅在首次需要相机时调用（用户点击「开始认证」等场景）
+  /// Web 端使用 camera_web 标准流程，需在用户手势上下文中调用
+  static Future<void> ensureCamerasLoaded() async {
+    if (_camerasLoaded) return;
+    availableCameraList = await availableCameras();
+    _camerasLoaded = true;
+  }
 
   // ──────────────────────────────────────────
   // 权限请求

@@ -24,6 +24,8 @@ class _RealtimeCameraSheetState extends State<RealtimeCameraSheet>
   bool _isInitializing = true;
   bool _isTakingPhoto = false;
   bool _isFront = false;
+  bool _hasError = false;
+  String _errorMsg = '';
 
   @override
   void initState() {
@@ -40,25 +42,48 @@ class _RealtimeCameraSheetState extends State<RealtimeCameraSheet>
   }
 
   Future<void> _initCamera() async {
-    setState(() => _isInitializing = true);
-
-    final camera = _isFront
-        ? CameraService.getFrontCamera()
-        : CameraService.getBackCamera();
-
-    if (camera == null) {
-      setState(() => _isInitializing = false);
-      return;
-    }
-
-    final controller = CameraController(
-      camera,
-      ResolutionPreset.high,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
+    setState(() {
+      _isInitializing = true;
+      _hasError = false;
+      _errorMsg = '';
+    });
 
     try {
+      final granted = await CameraService.requestCameraPermission();
+      if (!granted) {
+        if (mounted) {
+          setState(() {
+            _hasError = true;
+            _errorMsg = '请允许浏览器访问相机以进行认证';
+            _isInitializing = false;
+          });
+        }
+        return;
+      }
+
+      await CameraService.ensureCamerasLoaded();
+      final camera = _isFront
+          ? CameraService.getFrontCamera()
+          : CameraService.getBackCamera();
+
+      if (camera == null) {
+        if (mounted) {
+          setState(() {
+            _hasError = true;
+            _errorMsg = '请允许浏览器访问相机以进行认证';
+            _isInitializing = false;
+          });
+        }
+        return;
+      }
+
+      final controller = CameraController(
+        camera,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+
       await controller.initialize();
       await controller.setFlashMode(FlashMode.auto);
       if (mounted) {
@@ -68,7 +93,13 @@ class _RealtimeCameraSheetState extends State<RealtimeCameraSheet>
         });
       }
     } catch (e) {
-      setState(() => _isInitializing = false);
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _errorMsg = '请允许浏览器访问相机以进行认证';
+          _isInitializing = false;
+        });
+      }
     }
   }
 
@@ -129,8 +160,10 @@ class _RealtimeCameraSheetState extends State<RealtimeCameraSheet>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // ── 相机预览 ──
-            if (!_isInitializing && _controller != null)
+            // ── 相机预览 / 错误提示 ──
+            if (_hasError)
+              _buildErrorView()
+            else if (!_isInitializing && _controller != null)
               _buildPreview()
             else
               const Center(
@@ -145,6 +178,35 @@ class _RealtimeCameraSheetState extends State<RealtimeCameraSheet>
 
             // ── 快门按钮区 ──
             _buildShutterArea(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.camera_alt_outlined,
+                size: 48, color: Colors.white54),
+            const SizedBox(height: 16),
+            Text(
+              _errorMsg.isNotEmpty ? _errorMsg : '请允许浏览器访问相机以进行认证',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 24),
+            TextButton(
+              onPressed: () => _initCamera(),
+              child: const Text('重试'),
+            ),
           ],
         ),
       ),

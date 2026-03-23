@@ -26,17 +26,20 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
   CameraController? _controller;
   Timer? _countdownTimer;
   int _remainingSeconds = 5;
-  bool _isInitializing = true;
+  bool _hasStartedVerification = false;  // 仅点击「开始认证」后为 true
+  bool _isInitializing = false;
   bool _hasError = false;
   String _errorMsg = '';
 
   static const _totalSeconds = 5;
+  static const _gentleErrorMsg =
+      '请允许浏览器访问相机以进行认证';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initCamera();
+    // 不在此处初始化相机，等待用户点击「开始认证」
   }
 
   @override
@@ -49,6 +52,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_hasStartedVerification) return;
     if (_controller == null || !_controller!.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
       _controller?.dispose();
@@ -57,47 +61,57 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
     }
   }
 
+  /// 用户点击「开始认证」时调用，此时才触发相机初始化
+  Future<void> _onStartVerification() async {
+    if (_hasStartedVerification) return;
+    setState(() => _hasStartedVerification = true);
+    await _initCamera();
+  }
+
   Future<void> _initCamera() async {
     setState(() {
       _isInitializing = true;
       _hasError = false;
+      _errorMsg = '';
     });
 
-    final hasPermission = await CameraService.requestAllMediaPermissions();
-    if (!hasPermission) {
-      setState(() {
-        _hasError = true;
-        _errorMsg = '需要相机和麦克风权限才能进行身份验真';
-        _isInitializing = false;
-      });
-      return;
-    }
-
-    final camera = CameraService.getFrontCamera();
-    if (camera == null) {
-      setState(() {
-        _hasError = true;
-        _errorMsg = '未找到可用相机';
-        _isInitializing = false;
-      });
-      return;
-    }
-
-    final controller = CameraController(
-      camera,
-      ResolutionPreset.high,
-      enableAudio: true,
-      // 关闭所有图像增强，确保真实画面
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-
     try {
+      final hasPermission =
+          await CameraService.requestAllMediaPermissions();
+      if (!hasPermission) {
+        if (mounted) {
+          setState(() {
+            _hasError = true;
+            _errorMsg = _gentleErrorMsg;
+            _isInitializing = false;
+          });
+        }
+        return;
+      }
+
+      await CameraService.ensureCamerasLoaded();
+      final camera = CameraService.getFrontCamera();
+      if (camera == null) {
+        if (mounted) {
+          setState(() {
+            _hasError = true;
+            _errorMsg = _gentleErrorMsg;
+            _isInitializing = false;
+          });
+        }
+        return;
+      }
+
+      final controller = CameraController(
+        camera,
+        ResolutionPreset.high,
+        enableAudio: true,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+
       await controller.initialize();
-      // 关闭闪光灯
       await controller.setFlashMode(FlashMode.off);
-      // 关闭曝光锁（让画面保持真实环境光线）
       await controller.setExposureMode(ExposureMode.auto);
-      // 关闭对焦锁
       await controller.setFocusMode(FocusMode.auto);
 
       if (mounted) {
@@ -107,11 +121,13 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
         });
       }
     } catch (e) {
-      setState(() {
-        _hasError = true;
-        _errorMsg = '相机初始化失败：$e';
-        _isInitializing = false;
-      });
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _errorMsg = _gentleErrorMsg;
+          _isInitializing = false;
+        });
+      }
     }
   }
 
@@ -182,12 +198,25 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(verificationProvider);
 
+    // 未点击「开始认证」：显示引导页，不触发相机
+    if (!_hasStartedVerification) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            _buildStartVerificationLanding(),
+            _buildTopBar(context),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // ── 相机预览 ──
           if (!_isInitializing && !_hasError && _controller != null)
             _buildCameraPreview()
           else if (_isInitializing)
@@ -197,23 +226,81 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
           else
             _buildErrorView(),
 
-          // ── 顶部安全区 + 返回 ──
           _buildTopBar(context),
 
-          // ── 说明文字 ──
           if (!_isInitializing && !_hasError)
             _buildGuideText(state.isRecording),
 
-          // ── 人脸轮廓引导框 ──
           if (!_isInitializing && !_hasError) _buildFaceGuide(),
 
-          // ── 倒计时环 & 录制按钮 ──
           if (!_isInitializing && !_hasError)
             _buildRecordButton(state),
 
-          // ── 上传中遮罩 ──
           if (state.isUploading) _buildUploadingOverlay(state.progress),
         ],
+      ),
+    );
+  }
+
+  /// 引导页：仅当用户点击「开始认证」后才初始化相机
+  Widget _buildStartVerificationLanding() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.shield_rounded,
+                size: 44,
+                color: AppTheme.primary,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              '真身认证',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '录制 5 秒真实视频，获取银色徽章\n提升买家信任度',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.8),
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 40),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _onStartVerification,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text('开始认证'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
