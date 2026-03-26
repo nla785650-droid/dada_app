@@ -23,6 +23,12 @@ class CameraService {
     _camerasLoaded = true;
   }
 
+  /// 释放枚举缓存（例如用户退出实人认证后，避免长期占用枚举状态；下次进入会重新 availableCameras）
+  static void resetCameraEnumerationCache() {
+    _camerasLoaded = false;
+    availableCameraList = [];
+  }
+
   // ──────────────────────────────────────────
   // 权限请求
   // ──────────────────────────────────────────

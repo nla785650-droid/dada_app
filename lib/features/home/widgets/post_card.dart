@@ -1,18 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/post_model.dart';
+import 'pureget_image_audit.dart' show PureGetAuditTheme;
 
-// ── PostCard 升级为 StatefulWidget ──
-// 优化点：
-//   1. RepaintBoundary：将每个卡片隔离为独立渲染层，
-//      滚动时不触发同屏其他卡片的重绘（目标帧率 60/120fps）
-//   2. AutomaticKeepAliveClientMixin：Tab 切换时保留卡片状态
-//   3. 图片使用 CachedNetworkImage + 骨架屏占位
+/// 瀑布流卡片：独立 State，点赞/收藏等仅在当前卡片 setState，不牵连整列表。
 class PostCard extends StatefulWidget {
   const PostCard({super.key, required this.post, required this.index});
 
@@ -24,10 +23,21 @@ class PostCard extends StatefulWidget {
 }
 
 class _PostCardState extends State<PostCard>
-    with AutomaticKeepAliveClientMixin {
-  // 保持活跃：防止滚动时 widget 被销毁重建导致图片闪烁
+    with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
   @override
   bool get wantKeepAlive => true;
+
+  Timer? _imageTapTimer;
+  late AnimationController _heartAnim;
+  bool _liked = false;
+  bool _bookmarked = false;
+  late int _likeCount;
+  final List<String> _comments = [];
+
+  static const _tapNavDelay = Duration(milliseconds: 320);
+
+  static const _likeColor = Color(0xFFFF6B9D);
+  static const _bookmarkColor = Color(0xFFFFC107);
 
   double get _imageHeight {
     final heights = [200.0, 160.0, 220.0, 180.0, 240.0];
@@ -44,11 +54,157 @@ class _PostCardState extends State<PostCard>
   }
 
   @override
-  Widget build(BuildContext context) {
-    super.build(context); // 必须调用，触发 keepAlive 机制
+  void initState() {
+    super.initState();
+    _likeCount = widget.post.likeCount;
+    _heartAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
+    )..addStatusListener((s) {
+        if (s == AnimationStatus.completed) {
+          _heartAnim.reset();
+        }
+      });
+  }
 
-    // RepaintBoundary：将此卡片隔离为独立合成层
-    // 滚动时只有进出视口的卡片重绘，其余卡片直接复用 GPU 缓存
+  @override
+  void dispose() {
+    _imageTapTimer?.cancel();
+    _heartAnim.dispose();
+    super.dispose();
+  }
+
+  void _openPostDetail() {
+    context.pushNamed(
+      'postDetail',
+      pathParameters: {'postId': widget.post.id},
+      extra: widget.post,
+    );
+  }
+
+  void _onCoverImageTap() {
+    _imageTapTimer?.cancel();
+    _imageTapTimer = Timer(_tapNavDelay, () {
+      if (!mounted) return;
+      _openPostDetail();
+    });
+  }
+
+  void _onCoverImageDoubleTap() {
+    _imageTapTimer?.cancel();
+    if (!_liked) {
+      setState(() {
+        _liked = true;
+        _likeCount += 1;
+      });
+    }
+    if (_heartAnim.isAnimating) {
+      _heartAnim.reset();
+    }
+    _heartAnim.forward(); // 已点赞时仍播放双击反馈动画
+  }
+
+  void _toggleLikeBar() {
+    setState(() {
+      if (_liked) {
+        _liked = false;
+        _likeCount = (_likeCount > 0) ? _likeCount - 1 : 0;
+      } else {
+        _liked = true;
+        _likeCount += 1;
+      }
+    });
+  }
+
+  void _showBookmarkVaultToast() {
+    final entry = OverlayEntry(
+      builder: (ctx) => Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: PureGetAuditTheme.accentCyan.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_rounded,
+                    color: PureGetAuditTheme.accentCyan, size: 22),
+                const SizedBox(width: 10),
+                const Flexible(
+                  child: Text(
+                    '已加入 PureGet 个人保险箱',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    Overlay.of(context).insert(entry);
+    Future<void>.delayed(const Duration(milliseconds: 1600), () {
+      entry.remove();
+    });
+  }
+
+  void _toggleBookmark() {
+    setState(() => _bookmarked = !_bookmarked);
+    if (_bookmarked) {
+      _showBookmarkVaultToast();
+    }
+  }
+
+  Future<void> _openShareSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PureGetShareSheet(postTitle: widget.post.title),
+    );
+  }
+
+  Future<void> _openCommentSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
+        child: _CommentSheet(
+          existing: List<String>.from(_comments),
+          onSend: (text) {
+            if (!mounted) return;
+            setState(() => _comments.insert(0, text));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('评论已发送，PureGet 正在审核内容安全…'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
     return RepaintBoundary(
       child: Hero(
         tag: 'post_${widget.post.id}',
@@ -56,30 +212,30 @@ class _PostCardState extends State<PostCard>
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(16),
           clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () =>
-                context.pushNamed('postDetail', pathParameters: {'postId': widget.post.id}, extra: widget.post),
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              clipBehavior: Clip.hardEdge,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCoverImage(),
-                  _buildInfo(),
-                ],
-              ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.hardEdge,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildCoverImage(),
+                InkWell(
+                  onTap: _openPostDetail,
+                  child: _buildInfo(),
+                ),
+                _buildInteractionBar(),
+              ],
             ),
           ),
         ),
@@ -123,16 +279,57 @@ class _PostCardState extends State<PostCard>
             ),
           );
 
-    return Stack(
-      children: [
-        cover,
-        // 分类标签
-        Positioned(
-          top: 10,
-          left: 10,
-          child: _CategoryChip(category: widget.post.category),
-        ),
-      ],
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _onCoverImageTap,
+      onDoubleTap: _onCoverImageDoubleTap,
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          cover,
+          Positioned(
+            top: 10,
+            left: 10,
+            child: _CategoryChip(category: widget.post.category),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _heartAnim,
+                builder: (_, __) {
+                  final t = _heartAnim.value;
+                  if (t == 0 && !_heartAnim.isAnimating) {
+                    return const SizedBox.shrink();
+                  }
+                  final scale = Curves.elasticOut.transform(t.clamp(0.0, 1.0));
+                  final opacity = t < 0.42
+                      ? 1.0
+                      : (1.0 - ((t - 0.42) / 0.58).clamp(0.0, 1.0));
+                  return Center(
+                    child: Opacity(
+                      opacity: opacity,
+                      child: Transform.scale(
+                        scale: scale,
+                        child: const Icon(
+                          Icons.favorite_rounded,
+                          color: Color(0xFFE91E63),
+                          size: 84,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black45,
+                              blurRadius: 12,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -141,7 +338,7 @@ class _PostCardState extends State<PostCard>
     final avatarUrl = widget.post.provider?.avatarUrl;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -188,6 +385,381 @@ class _PostCardState extends State<PostCard>
     );
   }
 
+  /// 底部固定高度互动栏，避免随正文变长短不齐
+  Widget _buildInteractionBar() {
+    return SizedBox(
+      height: 44,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Row(
+          children: [
+            Expanded(
+              child: _InteractionIconButton(
+                outlineIcon: Icons.favorite_border_rounded,
+                filledIcon: Icons.favorite_rounded,
+                isActive: _liked,
+                activeColor: _likeColor,
+                label: _likeCount > 0 ? '$_likeCount' : '',
+                onTap: _toggleLikeBar,
+              ),
+            ),
+            Expanded(
+              child: _InteractionIconButton(
+                outlineIcon: Icons.chat_bubble_outline_rounded,
+                filledIcon: Icons.chat_bubble_rounded,
+                isActive: _comments.isNotEmpty,
+                activeColor: AppTheme.primary,
+                label: _comments.isNotEmpty ? '${_comments.length}' : '',
+                onTap: _openCommentSheet,
+              ),
+            ),
+            Expanded(
+              child: _InteractionIconButton(
+                outlineIcon: Icons.bookmark_border_rounded,
+                filledIcon: Icons.bookmark_rounded,
+                isActive: _bookmarked,
+                activeColor: _bookmarkColor,
+                label: '',
+                onTap: _toggleBookmark,
+              ),
+            ),
+            Expanded(
+              child: _InteractionIconButton(
+                outlineIcon: Icons.send_outlined,
+                filledIcon: Icons.send_rounded,
+                isActive: false,
+                activeColor: PureGetAuditTheme.accentCyan,
+                label: '',
+                onTap: _openShareSheet,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 轻触缩放反馈 ──
+class _InteractionIconButton extends StatefulWidget {
+  const _InteractionIconButton({
+    required this.outlineIcon,
+    required this.filledIcon,
+    required this.isActive,
+    required this.activeColor,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData outlineIcon;
+  final IconData filledIcon;
+  final bool isActive;
+  final Color activeColor;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_InteractionIconButton> createState() => _InteractionIconButtonState();
+}
+
+class _InteractionIconButtonState extends State<_InteractionIconButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _scale = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 110),
+      lowerBound: 0,
+      upperBound: 1,
+    );
+  }
+
+  @override
+  void dispose() {
+    _scale.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pulse() async {
+    await _scale.forward();
+    await _scale.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = widget.isActive ? widget.filledIcon : widget.outlineIcon;
+    final color = widget.isActive
+        ? widget.activeColor
+        : AppTheme.onSurfaceVariant.withValues(alpha: 0.85);
+
+    return InkWell(
+      onTap: () {
+        _pulse();
+        widget.onTap();
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: AnimatedBuilder(
+          animation: _scale,
+          builder: (_, __) {
+            final s = 1.0 - _scale.value * 0.12;
+            return Transform.scale(
+              scale: s,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 20, color: color),
+                  if (widget.label.isNotEmpty) ...[
+                    const SizedBox(width: 3),
+                    Text(
+                      widget.label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _PureGetShareSheet extends StatelessWidget {
+  const _PureGetShareSheet({required this.postTitle});
+
+  final String postTitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottom),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: PureGetAuditTheme.panel.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: PureGetAuditTheme.accentCyan.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.verified_user_outlined,
+                    color: PureGetAuditTheme.accentCyan, size: 22),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'PureGet 已对分享内容进行隐私脱敏处理',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: PureGetAuditTheme.deepBlue,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          ListTile(
+            leading: Icon(Icons.photo_size_select_large_outlined,
+                color: PureGetAuditTheme.accentCyan),
+            title: const Text('生成分享长图（模拟）'),
+            subtitle: Text(
+              postTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12),
+            ),
+            onTap: () {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(context);
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('已生成脱敏长图（演示）'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.link_rounded,
+                color: PureGetAuditTheme.accentCyan),
+            title: const Text('复制安全链接（模拟）'),
+            subtitle: const Text(
+              '链接已脱敏，不含精确位置等敏感字段',
+              style: TextStyle(fontSize: 12),
+            ),
+            onTap: () async {
+              await Clipboard.setData(
+                ClipboardData(
+                  text:
+                      'https://dada.app/share/${postTitle.hashCode.abs()}?pg=sanitized',
+                ),
+              );
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('安全链接已复制'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommentSheet extends StatefulWidget {
+  const _CommentSheet({required this.existing, required this.onSend});
+
+  final List<String> existing;
+  final void Function(String text) onSend;
+
+  @override
+  State<_CommentSheet> createState() => _CommentSheetState();
+}
+
+class _CommentSheetState extends State<_CommentSheet> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _send() {
+    final t = _ctrl.text.trim();
+    if (t.isEmpty) return;
+    widget.onSend(t);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    final h = MediaQuery.sizeOf(context).height * 0.52;
+    return SizedBox(
+      height: h,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              '评论',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: widget.existing.isEmpty
+                  ? const Center(
+                      child: Text(
+                        '暂无评论，做第一个吧～',
+                        style: TextStyle(color: AppTheme.onSurfaceVariant),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: widget.existing.length,
+                      itemBuilder: (_, i) => ListTile(
+                        dense: true,
+                        leading: const CircleAvatar(
+                          radius: 18,
+                          child: Icon(Icons.person_rounded, size: 20),
+                        ),
+                        title: Text(widget.existing[i]),
+                      ),
+                    ),
+            ),
+            const Divider(),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _ctrl,
+                    decoration: const InputDecoration(
+                      hintText: '说点什么…',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    minLines: 1,
+                    maxLines: 3,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _send(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _send,
+                  child: const Icon(Icons.send_rounded, size: 20),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AuthorAvatar extends StatelessWidget {
@@ -210,8 +782,7 @@ class _AuthorAvatar extends StatelessWidget {
             width: 22,
             height: 22,
             fit: BoxFit.cover,
-            errorWidget: (_, __, ___) =>
-                _initialFallback(initial),
+            errorWidget: (_, __, ___) => _initialFallback(initial),
           ),
         ),
       );

@@ -11,7 +11,7 @@ import 'features/safety/widgets/global_safety_fab.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 相机延迟初始化：仅在用户进入真身认证页并点击「开始认证」后触发
+  // 相机不在此处枚举或初始化；仅实人认证页在用户确认说明后按需初始化 CameraController。
 
   // 设置状态栏样式
   SystemChrome.setSystemUIOverlayStyle(

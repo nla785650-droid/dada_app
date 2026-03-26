@@ -4,12 +4,143 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/services/camera_service.dart';
 import '../providers/verification_provider.dart';
+
+// PureGet 实人认证 · 深蓝色说明面板色值
+const _pgPanel = Color(0xFF132F4C);
+const _pgCyan = Color(0xFF29B6F6);
+const _pgDeep = Color(0xFF0A1929);
+
+/// 预览确认页 pop 时：是否需在认证页重新开相机 / 是否结束整段认证流程
+enum _VerificationPreviewPopResult {
+  /// 重新录制或仅关闭预览：回到认证页后重新初始化相机
+  needResumeCamera,
+
+  /// 认证成功等：关闭认证页（栈上一屏）
+  finishAuthenticationFlow,
+}
+
+/// PureGet 摄像头权限说明：用户点击「确定」后再走系统权限申请（半屏 BottomSheet）
+Future<bool> showPureGetCameraPermissionRationale(BuildContext context) async {
+  final agreed = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    isDismissible: true,
+    builder: (ctx) {
+      final bottom = MediaQuery.paddingOf(ctx).bottom;
+      return Padding(
+        padding: EdgeInsets.only(bottom: bottom),
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+          decoration: BoxDecoration(
+            color: _pgPanel,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _pgCyan.withValues(alpha: 0.35)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 24,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.shield_moon_rounded,
+                        color: _pgCyan, size: 28),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'PureGet 安全认证',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '为了确保社交安全，PureGet 需要申请摄像头权限进行实人认证。',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.88),
+                    fontSize: 15,
+                    height: 1.55,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '摄像头仅在认证流程中使用，离开本页后将立即关闭，不会后台占用。',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white70,
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.35),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('暂不'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _pgCyan,
+                          foregroundColor: _pgDeep,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          '确定',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+  return agreed == true;
+}
 
 /// 身份验真录制页面
 class VerificationScreen extends ConsumerStatefulWidget {
@@ -40,36 +171,66 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // 不在此处初始化相机，等待用户点击「开始认证」
+    // 按需初始化：不在这里调用 availableCameras / CameraController.initialize。
+    // 仅当用户在本页点击「开始认证」并确认 PureGet 说明后，才在 _initCamera 中拉起相机硬件。
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
-    _controller?.dispose();
+    _releaseCameraHardware();
+    CameraService.resetCameraEnumerationCache();
     super.dispose();
+  }
+
+  void _releaseCameraHardware() {
+    final c = _controller;
+    _controller = null;
+    if (c != null) {
+      c.dispose();
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_hasStartedVerification) return;
-    if (_controller == null || !_controller!.value.isInitialized) return;
-    if (state == AppLifecycleState.inactive) {
-      _controller?.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _initCamera();
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        _countdownTimer?.cancel();
+        _countdownTimer = null;
+        if (_controller != null) {
+          _releaseCameraHardware();
+          if (mounted) setState(() {});
+        }
+        break;
+      case AppLifecycleState.resumed:
+        final route = ModalRoute.of(context);
+        if (route?.isCurrent != true) return;
+        if (_controller != null && _controller!.value.isInitialized) return;
+        if (_hasError || _isInitializing) return;
+        _initCamera();
+        break;
+      default:
+        break;
     }
   }
 
-  /// 用户点击「开始认证」时调用，此时才触发相机初始化
+  /// 用户点击「开始认证」→ PureGet 说明 BottomSheet → 确定后再初始化相机
   Future<void> _onStartVerification() async {
     if (_hasStartedVerification) return;
+    final ok = await showPureGetCameraPermissionRationale(context);
+    if (!ok || !mounted) return;
     setState(() => _hasStartedVerification = true);
     await _initCamera();
   }
 
   Future<void> _initCamera() async {
+    if (_isInitializing) return;
+    _releaseCameraHardware();
+
     setState(() {
       _isInitializing = true;
       _hasError = false;
@@ -126,8 +287,11 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
           _controller = controller;
           _isInitializing = false;
         });
+      } else {
+        await controller.dispose();
       }
     } catch (e) {
+      _releaseCameraHardware();
       if (mounted) {
         setState(() {
           _hasError = true;
@@ -174,17 +338,26 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
       if (!mounted) return;
       ref.read(verificationProvider.notifier).setVideoFile(videoFile);
 
-      // 跳转到预览确认页
-      if (mounted) {
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => _VerificationPreviewScreen(
-              userId: widget.userId,
-              videoFile: videoFile,
-            ),
+      // 进入预览前立即释放相机，避免预览叠加层下仍占用摄像头 / 指示灯常亮
+      _releaseCameraHardware();
+      if (mounted) setState(() {});
+
+      final popResult = await Navigator.of(context).push<_VerificationPreviewPopResult>(
+        MaterialPageRoute(
+          builder: (_) => _VerificationPreviewScreen(
+            userId: widget.userId,
+            videoFile: videoFile,
           ),
-        );
+        ),
+      );
+
+      if (!mounted) return;
+      if (popResult == _VerificationPreviewPopResult.finishAuthenticationFlow) {
+        Navigator.of(context).pop();
+        return;
       }
+      // 重新录制、返回预览、或其它需继续认证：重新按需初始化
+      await _initCamera();
     } catch (e) {
       _showError('停止录制失败：$e');
     }
@@ -671,7 +844,9 @@ class _VerificationPreviewScreenState
         backgroundColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context).pop(
+                _VerificationPreviewPopResult.needResumeCamera,
+              ),
         ),
         title: const Text(
           '确认核验视频',
@@ -822,8 +997,10 @@ class _VerificationPreviewScreenState
                             const SizedBox(height: 20),
                             ElevatedButton(
                               onPressed: () {
-                                Navigator.of(context).pop();
-                                Navigator.of(context).pop();
+                                Navigator.of(context).pop(
+                                  _VerificationPreviewPopResult
+                                      .finishAuthenticationFlow,
+                                );
                               },
                               style: ElevatedButton.styleFrom(
                                 minimumSize: const Size.fromHeight(50),
@@ -837,7 +1014,10 @@ class _VerificationPreviewScreenState
                           children: [
                             Expanded(
                               child: OutlinedButton(
-                                onPressed: () => Navigator.of(context).pop(),
+                                onPressed: () => Navigator.of(context).pop(
+                                      _VerificationPreviewPopResult
+                                          .needResumeCamera,
+                                    ),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: Colors.white70,
                                   side: const BorderSide(
