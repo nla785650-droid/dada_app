@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -110,9 +111,15 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen>
       );
 
       await controller.initialize();
-      await controller.setFlashMode(FlashMode.off);
-      await controller.setExposureMode(ExposureMode.auto);
-      await controller.setFocusMode(FocusMode.auto);
+
+      // 禁止调用 setFlashMode/setTorchMode，避免 Web 端 torchModeNotSupported
+      // 曝光/对焦仅移动端可选调用，Web 跳过
+      if (!kIsWeb) {
+        try {
+          await controller.setExposureMode(ExposureMode.auto);
+          await controller.setFocusMode(FocusMode.auto);
+        } catch (_) {}
+      }
 
       if (mounted) {
         setState(() {

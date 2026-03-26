@@ -28,9 +28,6 @@ dependencies:
   # 首页瀑布流
   flutter_staggered_grid_view: ^0.7.0
 
-  # 探探式卡片滑动
-  flutter_card_swiper: ^7.0.0
-
   # 日历预约
   table_calendar: ^3.1.2
 

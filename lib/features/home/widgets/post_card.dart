@@ -109,8 +109,11 @@ class _PostCardState extends State<PostCard>
   }
 
   Widget _buildInfo() {
+    final name = widget.post.provider?.displayNameOrUsername ?? '搭哒用户';
+    final avatarUrl = widget.post.provider?.avatarUrl;
+
     return Padding(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -120,44 +123,36 @@ class _PostCardState extends State<PostCard>
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: AppTheme.onSurface,
-              height: 1.4,
+              height: 1.35,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Row(
             children: [
-              // 价格
+              _AuthorAvatar(url: avatarUrl, name: name),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  widget.post.priceDisplay,
+                  name,
                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.accent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.onSurfaceVariant,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              // 地点
-              if (widget.post.location != null)
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.location_on_rounded,
-                      size: 11,
-                      color: AppTheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      widget.post.location!,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+              Text(
+                widget.post.priceDisplay,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.accent.withValues(alpha: 0.95),
                 ),
+              ),
             ],
           ),
         ],
@@ -165,6 +160,51 @@ class _PostCardState extends State<PostCard>
     );
   }
 
+}
+
+class _AuthorAvatar extends StatelessWidget {
+  const _AuthorAvatar({this.url, required this.name});
+
+  final String? url;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.isNotEmpty ? name.substring(0, 1) : '?';
+
+    if (url != null && url!.isNotEmpty) {
+      return CircleAvatar(
+        radius: 11,
+        backgroundColor: AppTheme.surfaceVariant,
+        child: ClipOval(
+          child: CachedNetworkImage(
+            imageUrl: url!,
+            width: 22,
+            height: 22,
+            fit: BoxFit.cover,
+            errorWidget: (_, __, ___) =>
+                _initialFallback(initial),
+          ),
+        ),
+      );
+    }
+    return _initialFallback(initial);
+  }
+
+  Widget _initialFallback(String initial) {
+    return CircleAvatar(
+      radius: 11,
+      backgroundColor: AppTheme.primary.withValues(alpha: 0.15),
+      child: Text(
+        initial,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: AppTheme.primary,
+        ),
+      ),
+    );
+  }
 }
 
 class _CategoryChip extends StatelessWidget {

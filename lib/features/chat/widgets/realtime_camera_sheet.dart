@@ -21,6 +21,7 @@ class RealtimeCameraSheet extends StatefulWidget {
 class _RealtimeCameraSheetState extends State<RealtimeCameraSheet>
     with WidgetsBindingObserver {
   CameraController? _controller;
+  bool _hasStartedCamera = false;  // 懒加载：仅用户点击「开始拍摄」后才初始化
   bool _isInitializing = true;
   bool _isTakingPhoto = false;
   bool _isFront = false;
@@ -31,7 +32,7 @@ class _RealtimeCameraSheetState extends State<RealtimeCameraSheet>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initCamera();
+    // 不在此处初始化相机，等待用户点击「开始拍摄」
   }
 
   @override
@@ -39,6 +40,13 @@ class _RealtimeCameraSheetState extends State<RealtimeCameraSheet>
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
     super.dispose();
+  }
+
+  /// 用户点击「开始拍摄」时触发，懒加载相机
+  Future<void> _onStartCamera() async {
+    if (_hasStartedCamera) return;
+    setState(() => _hasStartedCamera = true);
+    await _initCamera();
   }
 
   Future<void> _initCamera() async {
@@ -85,7 +93,9 @@ class _RealtimeCameraSheetState extends State<RealtimeCameraSheet>
       );
 
       await controller.initialize();
-      await controller.setFlashMode(FlashMode.auto);
+
+      // 禁止调用 setFlashMode/setTorchMode，避免 Web torchModeNotSupported
+
       if (mounted) {
         setState(() {
           _controller = controller;
@@ -157,30 +167,112 @@ class _RealtimeCameraSheetState extends State<RealtimeCameraSheet>
       ),
       child: ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // ── 相机预览 / 错误提示 ──
-            if (_hasError)
-              _buildErrorView()
-            else if (!_isInitializing && _controller != null)
-              _buildPreview()
-            else
-              const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              ),
-
-            // ── 顶部工具栏 ──
-            _buildTopBar(context),
-
-            // ── 防伪说明浮层 ──
-            _buildWatermarkBadge(),
-
-            // ── 快门按钮区 ──
-            _buildShutterArea(),
-          ],
-        ),
+        child: _hasStartedCamera
+            ? _buildCameraContent()
+            : _buildStartLanding(context),
       ),
+    );
+  }
+
+  /// 懒加载引导页：点击「开始拍摄」后才初始化相机
+  Widget _buildStartLanding(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.camera_alt_rounded,
+                    size: 40,
+                    color: AppTheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  '实时拍摄',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '仅相机拍摄，自动加水印\n发出后不可撤回',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _onStartCamera,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text('开始拍摄'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          top: 16,
+          right: 16,
+          child: GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: const Icon(Icons.close, color: Colors.white, size: 26),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCameraContent() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // ── 相机预览 / 错误提示 ──
+        if (_hasError)
+          _buildErrorView()
+        else if (!_isInitializing && _controller != null)
+          _buildPreview()
+        else
+          const Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          ),
+
+        // ── 顶部工具栏 ──
+        _buildTopBar(context),
+
+        // ── 防伪说明浮层 ──
+        _buildWatermarkBadge(),
+
+        // ── 快门按钮区 ──
+        _buildShutterArea(),
+      ],
     );
   }
 

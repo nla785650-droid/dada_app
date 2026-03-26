@@ -236,12 +236,6 @@
       "languageVersion": "3.0"
     },
     {
-      "name": "flutter_card_swiper",
-      "rootUri": "file:///C:/Users/86136/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_card_swiper-7.2.0",
-      "packageUri": "lib/",
-      "languageVersion": "3.0"
-    },
-    {
       "name": "flutter_driver",
       "rootUri": "file:///D:/src/flutter/packages/flutter_driver",
       "packageUri": "lib/",

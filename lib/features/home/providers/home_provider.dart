@@ -1,5 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/models/post_model.dart';
+import '../../../data/models/profile_model.dart';
+
+/// 首页顶层：关注 / 推荐 / 同城
+enum HomeFeedTab { following, recommend, nearby }
 
 // ─────────────────────────────────────────────
 // State
@@ -10,6 +14,7 @@ class HomePostsState {
     this.isLoading = false,
     this.isLoadingMore = false,
     this.error,
+    this.feedTab = HomeFeedTab.recommend,
     this.selectedCategory = 'all',
     this.hasMore = true,
     this.page = 0,
@@ -19,6 +24,7 @@ class HomePostsState {
   final bool isLoading;
   final bool isLoadingMore;
   final String? error;
+  final HomeFeedTab feedTab;
   final String selectedCategory;
   final bool hasMore;
   final int page;
@@ -28,6 +34,7 @@ class HomePostsState {
     bool? isLoading,
     bool? isLoadingMore,
     String? error,
+    HomeFeedTab? feedTab,
     String? selectedCategory,
     bool? hasMore,
     int? page,
@@ -37,6 +44,7 @@ class HomePostsState {
       isLoading: isLoading ?? this.isLoading,
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       error: error,
+      feedTab: feedTab ?? this.feedTab,
       selectedCategory: selectedCategory ?? this.selectedCategory,
       hasMore: hasMore ?? this.hasMore,
       page: page ?? this.page,
@@ -52,7 +60,13 @@ class HomePostsNotifier extends StateNotifier<HomePostsState> {
     _loadInitial();
   }
 
-  static const _pageSize = 20;
+  static const _pageSize = 10;
+  /// 同城 Tab 使用的模拟定位（接入 LBS 后替换）
+  static const _mockUserCity = '上海';
+
+  static const _nicknames = [
+    '小樱', '星野', '绫波', '凉宫', '柚子', '美月', '旅拍摄影师', '阿凯', '眠眠', '小鱼',
+  ];
 
   Future<void> _loadInitial() async {
     state = state.copyWith(isLoading: true, error: null);
@@ -70,7 +84,10 @@ class HomePostsNotifier extends StateNotifier<HomePostsState> {
   }
 
   Future<void> refresh() async {
-    state = HomePostsState(selectedCategory: state.selectedCategory);
+    state = HomePostsState(
+      feedTab: state.feedTab,
+      selectedCategory: state.selectedCategory,
+    );
     await _loadInitial();
   }
 
@@ -91,14 +108,24 @@ class HomePostsNotifier extends StateNotifier<HomePostsState> {
   }
 
   void filterByCategory(String category) {
-    state = HomePostsState(selectedCategory: category);
+    state = HomePostsState(
+      feedTab: state.feedTab,
+      selectedCategory: category,
+    );
     _loadInitial();
   }
 
-  // 模拟数据（接入 Supabase 后替换此方法）
-  Future<List<Post>> _fetchMockPosts({required int page}) async {
-    await Future.delayed(const Duration(milliseconds: 800));
+  void setFeedTab(HomeFeedTab tab) {
+    if (state.feedTab == tab) return;
+    state = HomePostsState(
+      feedTab: tab,
+      selectedCategory:
+          tab == HomeFeedTab.recommend ? state.selectedCategory : 'all',
+    );
+    _loadInitial();
+  }
 
+  Post _buildMockPost(int globalIndex, int page) {
     final mockImages = [
       'https://picsum.photos/seed/cos1/400/560',
       'https://picsum.photos/seed/cos2/400/480',
@@ -118,7 +145,7 @@ class HomePostsNotifier extends StateNotifier<HomePostsState> {
       '📸 摄影陪拍 | 日系小清新',
       '🎮 游戏陪玩 | 王者荣耀全排',
       '✨ 原神角色 | 派蒙超高还原',
-      '🎭 洛天依Cos | 同城面基',
+      '🎭 洛丽塔Cos | 同城面基',
       '🌙 暗黑系Cos | 高定战甲',
       '📷 棚拍体验 | 日出金光',
       '🎯 LOL陪练 | 晋级保障',
@@ -126,23 +153,68 @@ class HomePostsNotifier extends StateNotifier<HomePostsState> {
       '🎪 同人活动 | 漫展同行',
     ];
 
-    return List.generate(10, (i) {
-      final idx = (page * 10 + i) % 10;
-      return Post(
-        id: 'mock_${page}_$i',
-        providerId: 'provider_$i',
-        title: titles[idx],
-        description: '专业团队，品质保证，欢迎咨询',
-        category: categories[i % 4],
-        images: [mockImages[idx]],
-        coverImage: mockImages[idx],
-        price: (50 + (i * 37 + page * 13) % 450).toDouble(),
-        priceUnit: i % 3 == 0 ? '小时' : '次',
-        tags: ['专业', '精品'],
-        location: ['北京', '上海', '广州', '成都', '杭州'][i % 5],
-        createdAt: DateTime.now().subtract(Duration(hours: i * 3)),
-      );
-    });
+    final idx = globalIndex % 10;
+    final category = categories[globalIndex % 4];
+    final locs = ['北京', '上海', '广州', '成都', '杭州'];
+    final location = locs[globalIndex % 5];
+    final pid = globalIndex % 100;
+
+    final profile = Profile(
+      id: 'provider_$pid',
+      username: 'user_$pid',
+      displayName: _nicknames[pid % _nicknames.length],
+      avatarUrl: 'https://picsum.photos/seed/av$pid/128/128',
+      role: 'provider',
+      location: location,
+      createdAt: DateTime.now(),
+    );
+
+    return Post(
+      id: 'mock_${page}_$globalIndex',
+      providerId: profile.id,
+      title: titles[idx],
+      description: '专业团队，品质保证，欢迎咨询',
+      category: category,
+      images: [mockImages[idx]],
+      coverImage: mockImages[idx],
+      price: (50 + (globalIndex * 37 + page * 13) % 450).toDouble(),
+      priceUnit: globalIndex % 3 == 0 ? '小时' : '次',
+      tags: const ['专业', '精品'],
+      location: location,
+      createdAt: DateTime.now().subtract(Duration(hours: globalIndex % 48)),
+      provider: profile,
+    );
+  }
+
+  bool _postMatches(Post p) {
+    switch (state.feedTab) {
+      case HomeFeedTab.recommend:
+        if (state.selectedCategory == 'all') return true;
+        return p.category == state.selectedCategory;
+      case HomeFeedTab.following:
+        final n = int.tryParse(p.providerId.replaceFirst('provider_', '')) ?? 0;
+        return n % 2 == 0;
+      case HomeFeedTab.nearby:
+        return p.location == _mockUserCity;
+    }
+  }
+
+  // 模拟数据（接入 Supabase 后替换此方法）
+  Future<List<Post>> _fetchMockPosts({required int page}) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    final out = <Post>[];
+    final base = page * 40;
+    var globalI = base;
+    final guard = base + 400;
+
+    while (out.length < _pageSize && globalI < guard) {
+      final p = _buildMockPost(globalI, page);
+      if (_postMatches(p)) out.add(p);
+      globalI++;
+    }
+
+    return out;
   }
 }
 

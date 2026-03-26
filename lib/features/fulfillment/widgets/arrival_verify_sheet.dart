@@ -41,6 +41,7 @@ class ArrivalVerifySheet extends StatefulWidget {
 class _ArrivalVerifySheetState extends State<ArrivalVerifySheet>
     with SingleTickerProviderStateMixin {
   CameraController? _controller;
+  bool _hasStartedCamera = false;  // 懒加载：仅用户点击「开始拍摄」后才初始化
   bool _isInitializing = true;
   bool _hasCaptured = false;
   bool _isProcessing = false;
@@ -49,6 +50,9 @@ class _ArrivalVerifySheetState extends State<ArrivalVerifySheet>
 
   late AnimationController _shutterCtrl;
   late Animation<double> _shutterAnim;
+
+  bool _hasError = false;
+  String _errorMsg = '';
 
   @override
   void initState() {
@@ -60,11 +64,15 @@ class _ArrivalVerifySheetState extends State<ArrivalVerifySheet>
     _shutterAnim = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _shutterCtrl, curve: Curves.easeOut),
     );
-    _initCamera();
+    // 不在此处初始化相机，等待用户点击「开始拍摄」
   }
 
-  bool _hasError = false;
-  String _errorMsg = '';
+  /// 用户点击「开始拍摄」时触发，懒加载相机
+  Future<void> _onStartCamera() async {
+    if (_hasStartedCamera) return;
+    setState(() => _hasStartedCamera = true);
+    await _initCamera();
+  }
 
   Future<void> _initCamera() async {
     setState(() {
@@ -243,8 +251,85 @@ class _ArrivalVerifySheetState extends State<ArrivalVerifySheet>
       ),
       child: ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        child: _hasCaptured ? _buildPreview() : _buildCamera(mq),
+        child: !_hasStartedCamera
+            ? _buildStartLanding(context)
+            : (_hasCaptured ? _buildPreview() : _buildCamera(mq)),
       ),
+    );
+  }
+
+  /// 懒加载引导页：点击「开始拍摄」后才初始化相机
+  Widget _buildStartLanding(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.camera_alt_rounded,
+                    size: 40,
+                    color: AppTheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  '到达核验拍摄',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '仅相机拍摄，自动加水印（时间+位置）\n提交后不可撤回',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _onStartCamera,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text('开始拍摄'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          top: 48,
+          left: 16,
+          child: IconButton(
+            icon: const Icon(Icons.close, color: Colors.white, size: 28),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+      ],
     );
   }
 
