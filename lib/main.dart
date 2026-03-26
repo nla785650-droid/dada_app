@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/constants/app_constants.dart';
+import 'features/safety/widgets/global_safety_fab.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,14 +65,21 @@ class DadaApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       routerConfig: router,
       builder: (context, child) {
-        // 全局字体缩放保护
+        // 全局字体缩放保护 + 安全中心 FAB
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
             textScaler: TextScaler.linear(
               MediaQuery.of(context).textScaler.scale(1.0).clamp(0.8, 1.2),
             ),
           ),
-          child: child!,
+          child: Stack(
+            clipBehavior: Clip.none,
+            fit: StackFit.expand,
+            children: [
+              child!,
+              const GlobalSafetyFabLayer(),
+            ],
+          ),
         );
       },
     );

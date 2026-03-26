@@ -40,17 +40,9 @@ class TinderCardWidget extends StatelessWidget {
                 profile: profile,
                 bottomInset: bottomContentInset,
               ),
-              TinderSwipeStamp(
-                label: 'LIKE',
-                color: const Color(0xFF4CAF50),
-                alignment: Alignment.topLeft,
-                opacity: likeStampOpacity,
-              ),
-              TinderSwipeStamp(
-                label: 'PASS',
-                color: const Color(0xFFFF5252),
-                alignment: Alignment.topRight,
-                opacity: passStampOpacity,
+              TinderLikeNopeOverlays(
+                likeOpacity: likeStampOpacity,
+                passOpacity: passStampOpacity,
               ),
             ],
           ),

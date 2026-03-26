@@ -125,6 +125,15 @@ class HomePostsNotifier extends StateNotifier<HomePostsState> {
     _loadInitial();
   }
 
+  /// 用户在本页发布的动态，插入瀑布流顶部（MVP 本地模拟）。
+  void prependUserPost(Post post) {
+    state = state.copyWith(
+      posts: [post, ...state.posts],
+      isLoading: false,
+      error: null,
+    );
+  }
+
   Post _buildMockPost(int globalIndex, int page) {
     final mockImages = [
       'https://picsum.photos/seed/cos1/400/560',
@@ -167,7 +176,12 @@ class HomePostsNotifier extends StateNotifier<HomePostsState> {
       role: 'provider',
       location: location,
       createdAt: DateTime.now(),
+      isVerified: pid % 3 == 0,
     );
+
+    final sampleImages = idx % 4 == 0
+        ? <String>[mockImages[idx], mockImages[(idx + 3) % 10]]
+        : <String>[mockImages[idx]];
 
     return Post(
       id: 'mock_${page}_$globalIndex',
@@ -175,8 +189,8 @@ class HomePostsNotifier extends StateNotifier<HomePostsState> {
       title: titles[idx],
       description: '专业团队，品质保证，欢迎咨询',
       category: category,
-      images: [mockImages[idx]],
-      coverImage: mockImages[idx],
+      images: sampleImages,
+      coverImage: sampleImages.first,
       price: (50 + (globalIndex * 37 + page * 13) % 450).toDouble(),
       priceUnit: globalIndex % 3 == 0 ? '小时' : '次',
       tags: const ['专业', '精品'],

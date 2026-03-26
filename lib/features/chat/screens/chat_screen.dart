@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/services/camera_service.dart';
 import '../providers/chat_provider.dart';
+import '../providers/chat_threads_provider.dart';
 import '../widgets/realtime_camera_sheet.dart';
 
 /// 聊天详情页（支持实时拍照请求）
@@ -35,6 +35,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   bool _showMoreActions = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(chatThreadsProvider.notifier).clearUnread(widget.otherUserId);
+    });
+  }
 
   ChatNotifier get _notifier => ref.read(
         chatProvider(
@@ -99,7 +107,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         currentUserId: widget.currentUserId,
                         otherUserId: widget.otherUserId,
                       )));
-                      if (!mounted) return;
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('历史记录已加载')),
                       );

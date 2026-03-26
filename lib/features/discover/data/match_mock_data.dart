@@ -58,6 +58,7 @@ List<MatchProfile> buildMatchMockProfiles() {
       heightCm: heights[i % 10],
       zodiac: zodiacs[i % 10],
       mbti: mbtis[i % 10],
+      isVerified: i % 3 == 0,
     );
   });
 }
@@ -83,6 +84,7 @@ final matchDiversityPool = <MatchProfile>[
     heightCm: 166,
     zodiac: '水瓶座',
     mbti: 'INTJ',
+    isVerified: true,
   ),
   MatchProfile(
     id: 'div_2',
@@ -104,6 +106,7 @@ final matchDiversityPool = <MatchProfile>[
     heightCm: 168,
     zodiac: '天蝎座',
     mbti: 'ENTP',
+    isVerified: false,
   ),
   MatchProfile(
     id: 'div_3',
@@ -125,6 +128,7 @@ final matchDiversityPool = <MatchProfile>[
     heightCm: 175,
     zodiac: '双子座',
     mbti: 'ENFP',
+    isVerified: true,
   ),
 ];
 

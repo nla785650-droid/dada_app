@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../core/theme/app_theme.dart';
 import '../providers/home_provider.dart';
 import '../widgets/post_card.dart';
+import '../widgets/quick_publish_sheet.dart';
 import '../widgets/search_overlay.dart';
 import '../widgets/notification_panel.dart';
 
@@ -33,8 +35,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   static const _recommendChips = [
     _ChipDef('all', '全部'),
     _ChipDef('cosplay', 'Cosplay'),
-    _ChipDef('photo', '摄影陪拍'),
-    _ChipDef('game', '社交陪玩'),
+    _ChipDef('photo', '摄影'),
+    _ChipDef('game', '陪玩'),
   ];
 
   @override
@@ -119,7 +121,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   if (keyword != null &&
                       keyword.trim().isNotEmpty &&
                       context.mounted) {
-                    context.push('/search', extra: {'q': keyword.trim()});
+                    context.pushNamed(
+                      'search',
+                      extra: {'q': keyword.trim()},
+                    );
                   }
                 },
                 onNotification: () async {
@@ -141,26 +146,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ],
         ),
       ),
-      floatingActionButton: AnimatedSlide(
-        duration: const Duration(milliseconds: 300),
-        offset: _showFab ? Offset.zero : const Offset(0, 2),
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 300),
-          opacity: _showFab ? 1 : 0,
-          child: FloatingActionButton.small(
-            onPressed: () => _scrollController.animateTo(
-              0,
-              duration: const Duration(milliseconds: 500),
-              curve: Curves.easeOutCubic,
-            ),
-            backgroundColor: AppTheme.primary,
-            child: const Icon(
-              Icons.keyboard_arrow_up_rounded,
-              color: Colors.white,
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'home_quick_publish',
+            onPressed: () => showQuickPublishSheet(context, ref),
+            backgroundColor: const Color(0xFFFF2442),
+            child: const Icon(Icons.add_rounded, color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          AnimatedSlide(
+            duration: const Duration(milliseconds: 300),
+            offset: _showFab ? Offset.zero : const Offset(0, 2),
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 300),
+              opacity: _showFab ? 1 : 0,
+              child: FloatingActionButton.small(
+                heroTag: 'home_scroll_top',
+                onPressed: () => _scrollController.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeOutCubic,
+                ),
+                backgroundColor: AppTheme.primary,
+                child: const Icon(
+                  Icons.keyboard_arrow_up_rounded,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -184,18 +204,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       );
     }
 
-    return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-      sliver: SliverMasonryGrid.count(
-        crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        itemBuilder: (context, index) {
-          final post = postsState.posts[index];
-          return PostCard(post: post, index: index);
-        },
-        childCount: postsState.posts.length,
-      ),
+    return SliverLayoutBuilder(
+      builder: (context, constraints) {
+        final viewportW = constraints.crossAxisExtent;
+        const maxContent = 720.0;
+        final contentW = math.min(viewportW, maxContent);
+        final sidePad = math.max(12.0, (viewportW - contentW) / 2);
+        final crossCount = viewportW >= 900 ? 3 : 2;
+
+        return SliverPadding(
+          padding: EdgeInsets.fromLTRB(sidePad, 4, sidePad, 0),
+          sliver: SliverMasonryGrid.count(
+            crossAxisCount: crossCount,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            itemBuilder: (context, index) {
+              final post = postsState.posts[index];
+              return PostCard(post: post, index: index);
+            },
+            childCount: postsState.posts.length,
+          ),
+        );
+      },
     );
   }
 }

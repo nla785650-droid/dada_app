@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../shared/services/storage_service.dart';
+import 'chat_threads_provider.dart';
 
 // ──────────────────────────────────────────
 // 扩展消息类型（支持实时拍照）
@@ -91,15 +92,19 @@ class ChatState {
 
 class ChatNotifier extends StateNotifier<ChatState> {
   ChatNotifier({
+    required this.ref,
     required this.currentUserId,
     required this.otherUserId,
   }) : super(const ChatState()) {
+    ref.onDispose(() => _disposed = true);
     _loadMessages();
     _subscribeRealtime();
   }
 
+  final Ref ref;
   final String currentUserId;
   final String otherUserId;
+  bool _disposed = false;
   RealtimeChannel? _channel;
   static const _uuid = Uuid();
 
@@ -201,6 +206,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
       isSending: true,
     );
 
+    ref.read(chatThreadsProvider.notifier).bumpThreadAsUser(
+          otherUserId,
+          text.trim(),
+        );
+    _scheduleDemoAutoReply();
+
     try {
       await Supabase.instance.client.from('messages').insert({
         'id': msg.id,
@@ -213,6 +224,28 @@ class ChatNotifier extends StateNotifier<ChatState> {
     } finally {
       state = state.copyWith(isSending: false);
     }
+  }
+
+  /// MVP：1 秒后模拟对方回复（与消息列表预览同步）
+  void _scheduleDemoAutoReply() {
+    Future.delayed(const Duration(seconds: 1), () {
+      if (_disposed) return;
+      const replyText = '你好，很高兴认识你！';
+      final reply = ChatMessage(
+        id: _uuid.v4(),
+        senderId: otherUserId,
+        receiverId: currentUserId,
+        type: MessageType.text,
+        text: replyText,
+        createdAt: DateTime.now(),
+      );
+      state = state.copyWith(messages: [...state.messages, reply]);
+      ref.read(chatThreadsProvider.notifier).bumpThreadAsPeer(
+            otherUserId,
+            replyText,
+            inForeground: true,
+          );
+    });
   }
 
   // ── 买家发送实时拍照请求 ──
@@ -295,6 +328,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 final chatProvider = StateNotifierProvider.family<ChatNotifier, ChatState,
     ({String currentUserId, String otherUserId})>(
   (ref, ids) => ChatNotifier(
+    ref: ref,
     currentUserId: ids.currentUserId,
     otherUserId: ids.otherUserId,
   ),

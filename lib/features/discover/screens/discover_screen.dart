@@ -7,7 +7,6 @@ import 'package:palette_generator/palette_generator.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/provider_summary.dart';
-import '../../provider/widgets/rating_bottom_sheet.dart';
 import '../data/match_mock_data.dart';
 import '../models/discover_filter_model.dart';
 import '../models/match_profile.dart';
@@ -17,6 +16,8 @@ import '../widgets/discover_filter_sheet.dart';
 import '../widgets/match_like_toast.dart';
 import '../widgets/match_tab_header.dart';
 import '../widgets/tinder_swipe_stack.dart';
+import '../widgets/its_a_match_dialog.dart';
+import '../providers/match_preferences_provider.dart';
 
 /// 匹配页：类 Tinder 全屏滑动（沉浸式，无底部操作钮）
 class DiscoverScreen extends ConsumerStatefulWidget {
@@ -49,6 +50,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
   static const _diversityWindow = 5;
   static const _diversityThreshold = 0.8;
   bool _diversityInjected = false;
+
+  /// 连续完成滑动计数；每满 3 次且在第 3 次为 Like 时强制弹出互配祝贺。
+  int _swipeStreakForMatch = 0;
 
   late List<MatchProfile> _profiles;
   List<MatchProfile> _allProfiles = [];
@@ -193,12 +197,22 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
   }
 
   void _onCardSwiped(MatchProfile profile, MatchSwipeDirection direction) {
+    ref
+        .read(matchPreferencesProvider.notifier)
+        .recordSwipe(profile.id, direction);
+
+    var forceTripleMatch = false;
     setState(() {
       _currentIndex++;
+      _swipeStreakForMatch++;
+      if (_swipeStreakForMatch >= 3) {
+        forceTripleMatch = direction == MatchSwipeDirection.like;
+        _swipeStreakForMatch = 0;
+      }
     });
 
     if (direction == MatchSwipeDirection.like) {
-      _handleLike(profile);
+      _handleLike(profile, forceTripleMatch: forceTripleMatch);
     }
 
     _updateDiversityHistory(profile.tags);
@@ -257,6 +271,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
       _currentIndex = 0;
       _recentTagHistory.clear();
       _paletteCache.clear();
+      _swipeStreakForMatch = 0;
     });
     _preloadPalettes(0);
     if (_profiles.isNotEmpty) {
@@ -272,6 +287,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
       _currentIndex = 0;
       _recentTagHistory.clear();
       _paletteCache.clear();
+      _swipeStreakForMatch = 0;
     });
     _preloadPalettes(0);
     if (_profiles.isNotEmpty) {
@@ -279,11 +295,25 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
     }
   }
 
-  void _handleLike(MatchProfile profile) {
+  void _handleLike(MatchProfile profile, {bool forceTripleMatch = false}) {
     final summary = _toSummary(profile);
     ref.read(likesProvider.notifier).like(summary);
     HapticFeedback.mediumImpact();
-    MatchSuccessOverlay.show(context, name: profile.name);
+
+    if (forceTripleMatch) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showItsAMatchDialog(context, ref, profile: profile);
+      });
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('已喜欢 ${profile.name}'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
     showMatchLikeToast(context);
   }
 
@@ -299,6 +329,8 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
         price: p.price,
         tags: p.tags,
         isDiversityPick: p.isDiversityPick,
+        isVerified: p.isVerified,
+        portfolio: [p.imageUrl],
       );
 
   @override
@@ -334,8 +366,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                   currentIndex: _currentIndex,
                   bottomContentInset: bottomPad,
                   onSwiped: _onCardSwiped,
-                  onProfileTap: (p) => context.push(
-                    '/provider/${p.id}',
+                  onProfileTap: (p) => context.pushNamed(
+                    'providerProfile',
+                    pathParameters: {'id': p.id},
                     extra: _toSummary(p).toExtra(),
                   ),
                 )
@@ -435,6 +468,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
             onPressed: () {
               setState(() {
                 _currentIndex = 0;
+                _swipeStreakForMatch = 0;
                 _allProfiles = buildMatchMockProfiles();
                 _profiles = _composeVisibleProfiles();
                 _recentTagHistory.clear();

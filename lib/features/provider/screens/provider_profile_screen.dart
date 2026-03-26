@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:go_router/go_router.dart';
@@ -139,8 +140,11 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
 
   // ── Hero Banner（卡片到详情的过渡动画）──
   Widget _buildHeroBanner(BuildContext context) {
+    final bannerH =
+        (MediaQuery.sizeOf(context).shortestSide * 0.92).clamp(300.0, 420.0);
+
     return SliverAppBar(
-      expandedHeight: 380,
+      expandedHeight: bannerH,
       pinned: true,
       backgroundColor: Colors.transparent,
       elevation: 0,
@@ -172,6 +176,20 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
                 CachedNetworkImage(
                   imageUrl: _p.imageUrl,
                   fit: BoxFit.cover,
+                  memCacheWidth: kIsWeb
+                      ? (MediaQuery.sizeOf(context).width *
+                              MediaQuery.devicePixelRatioOf(context))
+                          .round()
+                          .clamp(600, 1400)
+                      : null,
+                  memCacheHeight: kIsWeb
+                      ? (bannerH *
+                              MediaQuery.devicePixelRatioOf(context))
+                          .round()
+                          .clamp(800, 2000)
+                      : null,
+                  maxWidthDiskCache: kIsWeb ? 1400 : null,
+                  maxHeightDiskCache: kIsWeb ? 2000 : null,
                 ),
                 // 底部渐变
                 const DecoratedBox(
@@ -181,7 +199,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
                 Positioned(
                   top: MediaQuery.of(context).padding.top + 56,
                   right: 16,
-                  child: _VerifiedBadge(),
+                  child: _VerifiedBadge(isVerified: _p.isVerified),
                 ),
                 // 名称（在 Banner 未折叠时显示）
                 Positioned(
@@ -442,6 +460,13 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
 
   Widget _buildPortfolioGrid() {
     final items = _portfolio;
+    final thumbPx = kIsWeb
+        ? ((MediaQuery.sizeOf(context).width / 3) *
+                MediaQuery.devicePixelRatioOf(context))
+            .round()
+            .clamp(200, 600)
+        : null;
+
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       sliver: SliverGrid(
@@ -451,6 +476,10 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
             child: CachedNetworkImage(
               imageUrl: items[i],
               fit: BoxFit.cover,
+              memCacheWidth: thumbPx,
+              memCacheHeight: thumbPx,
+              maxWidthDiskCache: kIsWeb ? 640 : null,
+              maxHeightDiskCache: kIsWeb ? 640 : null,
               placeholder: (_, __) => Container(color: AppTheme.surfaceVariant),
             ),
           ),
@@ -595,8 +624,14 @@ class _GlassButton extends StatelessWidget {
 }
 
 class _VerifiedBadge extends StatelessWidget {
+  const _VerifiedBadge({required this.isVerified});
+
+  final bool isVerified;
+
   @override
   Widget build(BuildContext context) {
+    if (!isVerified) return const SizedBox.shrink();
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: BackdropFilter(

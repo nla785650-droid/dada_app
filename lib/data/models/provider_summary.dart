@@ -17,6 +17,7 @@ class ProviderSummary {
     this.bio,
     this.completedOrders = 0,
     this.isDiversityPick = false,
+    this.isVerified = false,
   });
 
   final String id;
@@ -34,6 +35,8 @@ class ProviderSummary {
   final String? bio;
   final int completedOrders;
   final bool isDiversityPick;
+  /// 实人认证（达人）
+  final bool isVerified;
 
   Map<String, dynamic> toExtra() => {
         'id':              id,
@@ -50,6 +53,7 @@ class ProviderSummary {
         'portfolio':       portfolio,
         'bio':             bio,
         'completedOrders': completedOrders,
+        'isVerified': isVerified,
       };
 
   factory ProviderSummary.fromExtra(Map<String, dynamic> e) => ProviderSummary(
@@ -67,5 +71,6 @@ class ProviderSummary {
         portfolio:       List<String>.from(e['portfolio'] as List? ?? []),
         bio:             e['bio'] as String?,
         completedOrders: e['completedOrders'] as int? ?? 0,
+        isVerified: e['isVerified'] as bool? ?? false,
       );
 }

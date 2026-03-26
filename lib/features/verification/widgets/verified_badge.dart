@@ -127,60 +127,64 @@ class AvatarWithVerification extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        if (isVerified && verificationVideoUrl != null) {
-          _showVerificationPreview(context);
-        } else {
-          onTap?.call();
-        }
-      },
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // 头像本体
-          Hero(
-            tag: 'avatar_${avatarUrl ?? 'default'}',
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isVerified
-                      ? const Color(0xFFCCCCCC)
-                      : Colors.transparent,
-                  width: 2,
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.none,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () {
+          if (isVerified && verificationVideoUrl != null) {
+            _showVerificationPreview(context);
+          } else {
+            onTap?.call();
+          }
+        },
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Hero(
+              tag: 'avatar_${avatarUrl ?? 'default'}',
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isVerified
+                        ? const Color(0xFFCCCCCC)
+                        : Colors.transparent,
+                    width: 2,
+                  ),
+                  boxShadow: isVerified
+                      ? [
+                          BoxShadow(
+                            color: Colors.grey.withValues(alpha: 0.4),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          )
+                        ]
+                      : null,
                 ),
-                boxShadow: isVerified
-                    ? [
-                        BoxShadow(
-                          color: Colors.grey.withValues(alpha: 0.4),
-                          blurRadius: 8,
-                          spreadRadius: 1,
+                child: ClipOval(
+                  child: avatarUrl != null && avatarUrl!.isNotEmpty
+                      ? Image.network(
+                          avatarUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _defaultAvatar(),
                         )
-                      ]
-                    : null,
-              ),
-              child: ClipOval(
-                child: avatarUrl != null && avatarUrl!.isNotEmpty
-                    ? Image.network(
-                        avatarUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _defaultAvatar(),
-                      )
-                    : _defaultAvatar(),
+                      : _defaultAvatar(),
+                ),
               ),
             ),
-          ),
-          // 认证徽章（右下角）
-          if (isVerified)
-            Positioned(
-              right: -2,
-              bottom: -2,
-              child: VerifiedBadge(size: size * 0.35),
-            ),
-        ],
+            if (isVerified)
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: VerifiedBadge(size: size * 0.35),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -12,9 +12,11 @@ import '../../features/discover/screens/discover_screen.dart';
 import '../../features/ai_lab/screens/ai_lab_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/signup_screen.dart';
+import '../../features/verification/screens/verification_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
+import '../../features/profile/screens/edit_profile_screen.dart';
 import '../../features/fulfillment/screens/fulfillment_screen.dart';
 import '../../features/payment/screens/payment_mock_screen.dart';
 import '../../features/booking/screens/order_detail_screen.dart';
@@ -147,6 +149,30 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'signup',
         pageBuilder: (_, __) => CustomTransitionPage(
           child: const SignUpScreen(),
+          transitionsBuilder: (_, animation, __, child) =>
+              _slideRightTransition(animation, child),
+        ),
+      ),
+
+      GoRoute(
+        path: '/verify',
+        name: 'verify',
+        pageBuilder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          final userId = extra['userId'] as String? ?? 'current_user';
+          return CustomTransitionPage(
+            child: VerificationScreen(userId: userId),
+            transitionsBuilder: (_, animation, __, child) =>
+                _slideRightTransition(animation, child),
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/profile/edit',
+        name: 'editProfile',
+        pageBuilder: (_, __) => CustomTransitionPage(
+          child: const EditProfileScreen(),
           transitionsBuilder: (_, animation, __, child) =>
               _slideRightTransition(animation, child),
         ),
@@ -432,6 +458,7 @@ ProviderSummary _mockProvider(String id) => ProviderSummary(
       location: '未知',
       price:    120,
       tags:     const ['二次元', '古风', '写真'],
+      isVerified: false,
     );
 
 // ── 错误页 ──

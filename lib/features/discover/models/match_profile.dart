@@ -23,6 +23,7 @@ class MatchProfile {
     this.heightCm,
     this.zodiac,
     this.mbti,
+    this.isVerified = false,
   });
 
   final String id;
@@ -44,6 +45,7 @@ class MatchProfile {
   final int? heightCm;
   final String? zodiac;
   final String? mbti;
+  final bool isVerified;
 }
 
 /// 滑卡方向

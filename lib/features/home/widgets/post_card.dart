@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
@@ -33,6 +34,15 @@ class _PostCardState extends State<PostCard>
     return heights[widget.index % heights.length];
   }
 
+  (int, int) _memCachePx(BuildContext context) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final w = MediaQuery.sizeOf(context).width;
+    final colW = (w / 2 - 28).clamp(120.0, 420.0);
+    final mw = (colW * dpr).round().clamp(180, kIsWeb ? 900 : 1200);
+    final mh = (_imageHeight * dpr).round().clamp(200, kIsWeb ? 1100 : 1600);
+    return (mw, mh);
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // 必须调用，触发 keepAlive 机制
@@ -40,12 +50,16 @@ class _PostCardState extends State<PostCard>
     // RepaintBoundary：将此卡片隔离为独立合成层
     // 滚动时只有进出视口的卡片重绘，其余卡片直接复用 GPU 缓存
     return RepaintBoundary(
-      child: GestureDetector(
-        onTap: () => context.push('/post/${widget.post.id}', extra: widget.post),
-        child: Hero(
-          tag: 'post_${widget.post.id}',
-          child: Material(
-            color: Colors.transparent,
+      child: Hero(
+        tag: 'post_${widget.post.id}',
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () =>
+                context.pushNamed('postDetail', pathParameters: {'postId': widget.post.id}, extra: widget.post),
+            borderRadius: BorderRadius.circular(16),
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -74,30 +88,44 @@ class _PostCardState extends State<PostCard>
   }
 
   Widget _buildCoverImage() {
-    return Stack(
-      children: [
-        CachedNetworkImage(
-          imageUrl: widget.post.displayCoverImage,
-          height: _imageHeight,
-          width: double.infinity,
-          fit: BoxFit.cover,
-          placeholder: (_, __) => Shimmer.fromColors(
-            baseColor: AppTheme.surfaceVariant,
-            highlightColor: Colors.white,
-            child: Container(
+    final bytes = widget.post.localCoverBytes;
+    final Widget cover = bytes != null
+        ? Image.memory(
+            bytes,
+            height: _imageHeight,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          )
+        : CachedNetworkImage(
+            imageUrl: widget.post.displayCoverImage,
+            height: _imageHeight,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            memCacheWidth: _memCachePx(context).$1,
+            memCacheHeight: _memCachePx(context).$2,
+            maxWidthDiskCache: kIsWeb ? 1000 : 1400,
+            maxHeightDiskCache: kIsWeb ? 1200 : 1800,
+            placeholder: (_, __) => Shimmer.fromColors(
+              baseColor: AppTheme.surfaceVariant,
+              highlightColor: Colors.white,
+              child: Container(
+                height: _imageHeight,
+                color: AppTheme.surfaceVariant,
+              ),
+            ),
+            errorWidget: (_, __, ___) => Container(
               height: _imageHeight,
               color: AppTheme.surfaceVariant,
+              child: const Icon(
+                Icons.image_not_supported_rounded,
+                color: AppTheme.onSurfaceVariant,
+              ),
             ),
-          ),
-          errorWidget: (_, __, ___) => Container(
-            height: _imageHeight,
-            color: AppTheme.surfaceVariant,
-            child: const Icon(
-              Icons.image_not_supported_rounded,
-              color: AppTheme.onSurfaceVariant,
-            ),
-          ),
-        ),
+          );
+
+    return Stack(
+      children: [
+        cover,
         // 分类标签
         Positioned(
           top: 10,

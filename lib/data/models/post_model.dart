@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart';
 import 'profile_model.dart';
 
@@ -11,6 +13,7 @@ class Post {
     required this.category,
     required this.images,
     this.coverImage,
+    this.localCoverBytes,
     required this.price,
     this.priceUnit = '次',
     this.tags,
@@ -29,6 +32,8 @@ class Post {
   final String category; // 'cosplay' | 'photo' | 'game' | 'other'
   final List<String> images;
   final String? coverImage;
+  /// 用户本机发布（Web/Mobile）封面二进制；优先于网络 URL 展示。
+  final Uint8List? localCoverBytes;
   final double price;
   final String priceUnit;
   final List<String>? tags;
@@ -41,8 +46,12 @@ class Post {
   // 关联查询时附带的 provider 信息
   final Profile? provider;
 
-  String get displayCoverImage =>
-      coverImage ?? (images.isNotEmpty ? images.first : '');
+  String get displayCoverImage {
+    if (localCoverBytes != null) return '';
+    return coverImage ?? (images.isNotEmpty ? images.first : '');
+  }
+
+  bool get hasLocalCover => localCoverBytes != null;
 
   String get categoryLabel {
     return switch (category) {

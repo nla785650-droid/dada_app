@@ -1,5 +1,7 @@
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -57,8 +59,14 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   }
 
   Post get _post => widget.post;
-  List<String> get _images =>
-      _post.images.isNotEmpty ? _post.images : [_post.displayCoverImage];
+
+  /// 轮播用网络图 URL（本机动态可为空，由 [Post.localCoverBytes] 承载封面）
+  List<String> get _imageUrls {
+    if (_post.images.isNotEmpty) return _post.images;
+    if (_post.hasLocalCover) return const [];
+    final u = _post.displayCoverImage;
+    return u.isNotEmpty ? [u] : ['https://picsum.photos/seed/${_post.id}/400/560'];
+  }
 
   void _toggleLike() {
     HapticFeedback.lightImpact();
@@ -67,31 +75,49 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       _likeCount += _liked ? 1 : -1;
     });
     _heartCtrl.forward(from: 0);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_liked ? '已点赞 ❤️' : '已取消点赞'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _goToProvider() {
     final provider = _post.provider;
+    final coverUrl = _post.displayCoverImage.isNotEmpty
+        ? _post.displayCoverImage
+        : 'https://picsum.photos/seed/${_post.id}/400/560';
     final summary = ProviderSummary(
       id:        _post.providerId,
       name:      provider?.displayName ?? '达人',
       tag:       _post.categoryLabel,
       typeEmoji: _post.category == 'cosplay' ? '🎭' : _post.category == 'photo' ? '📸' : '🎮',
-      imageUrl:  _post.displayCoverImage,
+      imageUrl:  coverUrl,
       rating:    provider?.rating ?? 4.8,
       reviews:   provider?.reviewCount ?? 0,
       location:  _post.location ?? '',
       price:     _post.price.toInt(),
       tags:      _post.tags ?? [],
       avatarUrl: provider?.avatarUrl,
+      portfolio: List<String>.from(_imageUrls),
+      isVerified: provider?.isVerified ?? false,
     );
-    context.push(
-      '/provider/${_post.providerId}',
+    context.pushNamed(
+      'providerProfile',
+      pathParameters: {'id': _post.providerId},
       extra: summary.toExtra(),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    final carouselH =
+        (mq.size.width * 0.72).clamp(240.0, 480.0).toDouble();
+
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
@@ -100,7 +126,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
         slivers: [
           // ── 图片轮播 AppBar ──
           SliverAppBar(
-            expandedHeight: MediaQuery.of(context).size.height * 0.55,
+            expandedHeight: carouselH,
             pinned: false,
             floating: false,
             backgroundColor: Colors.transparent,
@@ -118,7 +144,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
             flexibleSpace: FlexibleSpaceBar(
               collapseMode: CollapseMode.pin,
               background: _ImageCarousel(
-                images: _images,
+                images: _imageUrls,
+                localCoverBytes: _post.localCoverBytes,
                 heroTag: 'post_${_post.id}',
                 onPageChanged: (i) => setState(() => _currentImage = i),
                 currentIndex: _currentImage,
@@ -189,6 +216,46 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                       ),
                     ],
 
+                    if (_imageUrls.length > 1) ...[
+                      const SizedBox(height: 18),
+                      const Text(
+                        '服务样片',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 76,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _imageUrls.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 8),
+                          itemBuilder: (_, i) {
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: CachedNetworkImage(
+                                  imageUrl: _imageUrls[i],
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 240,
+                                  memCacheHeight: 240,
+                                  maxWidthDiskCache:
+                                      kIsWeb ? 480 : 600,
+                                  maxHeightDiskCache:
+                                      kIsWeb ? 480 : 600,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 16),
                     const Divider(color: AppTheme.divider),
 
@@ -245,31 +312,54 @@ class _PostDetailScreenState extends State<PostDetailScreen>
 class _ImageCarousel extends StatelessWidget {
   const _ImageCarousel({
     required this.images,
+    this.localCoverBytes,
     required this.heroTag,
     required this.currentIndex,
     required this.onPageChanged,
   });
 
   final List<String> images;
+  final Uint8List? localCoverBytes;
   final String heroTag;
   final int currentIndex;
   final ValueChanged<int> onPageChanged;
+
+  int get _pageCount {
+    if (localCoverBytes != null && images.isEmpty) return 1;
+    return images.length;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Hero 动画目标（第一张图）
         PageView.builder(
           onPageChanged: onPageChanged,
-          itemCount: images.length,
+          itemCount: _pageCount,
           itemBuilder: (_, i) {
+            if (localCoverBytes != null && images.isEmpty) {
+              final mem = Image.memory(
+                localCoverBytes!,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+              );
+              return Hero(
+                tag: heroTag,
+                child: Material(color: Colors.transparent, child: mem),
+              );
+            }
+
             final img = CachedNetworkImage(
               imageUrl: images[i],
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
+              memCacheWidth: kIsWeb ? 1200 : null,
+              memCacheHeight: kIsWeb ? 1600 : null,
+              maxWidthDiskCache: kIsWeb ? 1400 : null,
+              maxHeightDiskCache: kIsWeb ? 2000 : null,
             );
             if (i == 0) {
               return Hero(
@@ -281,8 +371,7 @@ class _ImageCarousel extends StatelessWidget {
           },
         ),
 
-        // 图片数量指示器
-        if (images.length > 1)
+        if (_pageCount > 1)
           Positioned(
             top: MediaQuery.of(context).padding.top + 56,
             right: 16,
@@ -293,20 +382,20 @@ class _ImageCarousel extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                '${currentIndex + 1}/${images.length}',
+                '${currentIndex + 1}/$_pageCount',
                 style: const TextStyle(color: Colors.white, fontSize: 12),
               ),
             ),
           ),
 
         // 底部页码点
-        if (images.length > 1)
+        if (_pageCount > 1)
           Positioned(
             bottom: 20,
             left: 0, right: 0,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(images.length, (i) => AnimatedContainer(
+              children: List.generate(_pageCount, (i) => AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 width: i == currentIndex ? 18 : 6,
@@ -370,6 +459,27 @@ class _ProviderRow extends StatelessWidget {
                     color: AppTheme.onSurface,
                   ),
                 ),
+                if (post.provider?.isVerified == true) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.verified_rounded,
+                        size: 14,
+                        color: Colors.blue.shade400,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '已实人认证',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 if (post.location != null)
                   Row(
                     children: [

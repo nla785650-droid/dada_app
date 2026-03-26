@@ -5,10 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/providers/supabase_provider.dart';
+import '../../../shared/providers/current_user_provider.dart';
 import '../../../shared/services/supabase_service.dart';
 import '../../../data/models/provider_application_model.dart';
 import '../../become_provider/screens/become_provider_screen.dart';
-import '../../verification/screens/verification_screen.dart';
 import '../../verification/widgets/verified_badge.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -54,7 +54,7 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 32),
                 FilledButton(
-                  onPressed: () => context.push('/login'),
+                  onPressed: () => context.pushNamed('login'),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppTheme.primary,
                     padding: const EdgeInsets.symmetric(
@@ -79,7 +79,7 @@ class ProfileScreen extends ConsumerWidget {
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          _buildSliverHeader(context),
+          _buildSliverHeader(context, ref),
           SliverToBoxAdapter(
             child: _buildStatsRow(),
           ),
@@ -96,7 +96,9 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSliverHeader(BuildContext context) {
+  Widget _buildSliverHeader(BuildContext context, WidgetRef ref) {
+    final me = ref.watch(appUserProfileProvider);
+
     return SliverAppBar(
       expandedHeight: 240,
       pinned: true,
@@ -149,10 +151,10 @@ class ProfileScreen extends ConsumerWidget {
                 children: [
                   // 头像（带真身认证徽章）
                   AvatarWithVerification(
-                    avatarUrl: null,
+                    avatarUrl: me.avatarUrl,
                     isVerified: _mockIsVerified,
                     size: 72,
-                    onTap: () {},
+                    onTap: () => context.pushNamed('editProfile'),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -160,9 +162,9 @@ class ProfileScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                      const Text(
-                        '搭哒用户',
-                        style: TextStyle(
+                      Text(
+                        me.displayName,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
@@ -171,11 +173,15 @@ class ProfileScreen extends ConsumerWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          Text(
-                            '✨ 二次元爱好者',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontSize: 13,
+                          Expanded(
+                            child: Text(
+                              me.bio,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.8),
+                                fontSize: 13,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           if (_mockIsVerified) ...[
@@ -192,7 +198,7 @@ class ProfileScreen extends ConsumerWidget {
                       Icons.edit_rounded,
                       color: Colors.white,
                     ),
-                    onPressed: () {},
+                    onPressed: () => context.pushNamed('editProfile'),
                   ),
                 ],
               ),
@@ -280,11 +286,9 @@ class ProfileScreen extends ConsumerWidget {
         // 真身认证入口（未认证时显示）
         if (!_mockIsVerified)
           _VerificationEntryCard(
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) =>
-                    const VerificationScreen(userId: _mockUserId),
-              ),
+            onTap: () => context.push(
+              '/verify',
+              extra: {'userId': _mockUserId},
             ),
           ),
         _MenuGroupWithActions(

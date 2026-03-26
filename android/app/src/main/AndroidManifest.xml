@@ -14,6 +14,9 @@
         android:maxSdkVersion="28" />
     <!-- 振动反馈（快门反馈） -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 安全中心：实时定位 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- 硬件特性声明（非强制） -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />

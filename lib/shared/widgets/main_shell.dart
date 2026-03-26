@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../../features/safety/providers/safety_location_provider.dart';
 
 // ══════════════════════════════════════════════════════════════
 // MainShell：底部导航壳层
@@ -10,7 +12,7 @@ import '../../core/theme/app_theme.dart';
 // 保证切换 Tab 时页面状态不丢失（如滚动位置、加载的数据等）
 // ══════════════════════════════════════════════════════════════
 
-class MainShell extends StatelessWidget {
+class MainShell extends ConsumerWidget {
   const MainShell({
     super.key,
     required this.navigationShell,
@@ -27,17 +29,19 @@ class MainShell extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       extendBody: true,
       body: navigationShell,
       bottomNavigationBar: _GlassNavBar(
         currentIndex: navigationShell.currentIndex,
-        onTap: (i) => navigationShell.goBranch(
-          i,
-          // 再次点击当前 Tab 时回到该 Tab 的根路由
-          initialLocation: i == navigationShell.currentIndex,
-        ),
+        onTap: (i) {
+          ref.read(safetyLocationProvider.notifier).refresh();
+          navigationShell.goBranch(
+            i,
+            initialLocation: i == navigationShell.currentIndex,
+          );
+        },
         tabs: _tabs,
       ),
     );
@@ -91,37 +95,40 @@ class _GlassNavBar extends StatelessWidget {
                   // 发布中心 Tab（中间）特殊样式：大号 + 渐变圆形按钮
                   if (i == 2) {
                     return Expanded(
-                      child: GestureDetector(
-                        onTap: () => onTap(i),
-                        behavior: HitTestBehavior.opaque,
-                        child: Center(
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  AppTheme.primary,
-                                  Color(0xFF818CF8),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppTheme.primary.withValues(
-                                      alpha: isSelected ? 0.5 : 0.25),
-                                  blurRadius: isSelected ? 16 : 8,
-                                  offset: const Offset(0, 4),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => onTap(i),
+                          customBorder: const CircleBorder(),
+                          child: Center(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    AppTheme.primary,
+                                    Color(0xFF818CF8),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
-                              ],
-                            ),
-                            child: Icon(
-                              tabs[i].icon,
-                              size: 26,
-                              color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.primary.withValues(
+                                        alpha: isSelected ? 0.5 : 0.25),
+                                    blurRadius: isSelected ? 16 : 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                tabs[i].icon,
+                                size: 26,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -129,38 +136,42 @@ class _GlassNavBar extends StatelessWidget {
                     );
                   }
                   return Expanded(
-                    child: GestureDetector(
-                      onTap: () => onTap(i),
-                      behavior: HitTestBehavior.opaque,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          AnimatedScale(
-                            scale: isSelected ? 1.18 : 1.0,
-                            duration: const Duration(milliseconds: 200),
-                            child: Icon(
-                              isSelected ? tabs[i].activeIcon : tabs[i].icon,
-                              size: 24,
-                              color: isSelected
-                                  ? AppTheme.primary
-                                  : AppTheme.onSurfaceVariant,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => onTap(i),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            AnimatedScale(
+                              scale: isSelected ? 1.18 : 1.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: Icon(
+                                isSelected
+                                    ? tabs[i].activeIcon
+                                    : tabs[i].icon,
+                                size: 24,
+                                color: isSelected
+                                    ? AppTheme.primary
+                                    : AppTheme.onSurfaceVariant,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 200),
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w400,
-                              color: isSelected
-                                  ? AppTheme.primary
-                                  : AppTheme.onSurfaceVariant,
+                            const SizedBox(height: 2),
+                            AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 200),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                                color: isSelected
+                                    ? AppTheme.primary
+                                    : AppTheme.onSurfaceVariant,
+                              ),
+                              child: Text(tabs[i].label),
                             ),
-                            child: Text(tabs[i].label),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   );

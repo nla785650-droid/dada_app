@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../home/widgets/quick_publish_sheet.dart';
 
 // ══════════════════════════════════════════════════════════════
 // PublishCenterScreen：发布中心（中间 Tab）
@@ -293,6 +294,10 @@ class _PublishCenterScreenState extends ConsumerState<PublishCenterScreen>
 
   void _showPublishSheet(BuildContext context, String type) {
     HapticFeedback.mediumImpact();
+    if (type == '发布动态') {
+      showQuickPublishSheet(context, ref);
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,

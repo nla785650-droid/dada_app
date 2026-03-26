@@ -180,48 +180,78 @@ class TinderCardOverlay extends StatelessWidget {
   }
 }
 
-/// 滑动手势时的 LIKE / PASS 角标
-class TinderSwipeStamp extends StatelessWidget {
-  const TinderSwipeStamp({
+/// Tinder 风格：左滑「NOPE」、右滑「LIKE」大图层叠（随拖拽实时淡入）
+class TinderLikeNopeOverlays extends StatelessWidget {
+  const TinderLikeNopeOverlays({
     super.key,
-    required this.label,
-    required this.color,
-    required this.alignment,
-    required this.opacity,
+    required this.likeOpacity,
+    required this.passOpacity,
   });
 
-  final String label;
-  final Color color;
-  final AlignmentGeometry alignment;
-  final double opacity;
+  final double likeOpacity;
+  final double passOpacity;
 
   @override
   Widget build(BuildContext context) {
-    if (opacity <= 0.01) return const SizedBox.shrink();
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _stamp(
+          label: 'NOPE',
+          color: const Color(0xFFFF5252),
+          alignment: Alignment.topLeft,
+          angle: -0.35,
+          opacity: passOpacity,
+        ),
+        _stamp(
+          label: 'LIKE',
+          color: const Color(0xFF4CAF50),
+          alignment: Alignment.topRight,
+          angle: 0.35,
+          opacity: likeOpacity,
+        ),
+      ],
+    );
+  }
 
+  Widget _stamp({
+    required String label,
+    required Color color,
+    required AlignmentGeometry alignment,
+    required double angle,
+    required double opacity,
+  }) {
+    if (opacity <= 0.01) return const SizedBox.shrink();
     return Positioned.fill(
       child: Align(
         alignment: alignment,
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.fromLTRB(20, 72, 20, 0),
           child: Opacity(
             opacity: opacity.clamp(0.0, 1.0),
             child: Transform.rotate(
-              angle: alignment == Alignment.topLeft ? -0.25 : 0.25,
+              angle: angle,
               child: Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                 decoration: BoxDecoration(
-                  border: Border.all(color: color, width: 3),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: color, width: 4),
+                  color: Colors.black.withValues(alpha: 0.12),
                 ),
                 child: Text(
                   label,
                   style: TextStyle(
                     color: color,
-                    fontSize: 28,
+                    fontSize: 38,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
+                    letterSpacing: 2,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        blurRadius: 8,
+                      ),
+                    ],
                   ),
                 ),
               ),

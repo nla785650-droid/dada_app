@@ -50,6 +50,8 @@ dependencies:
   uuid: ^4.4.0
   shimmer: ^3.0.0
   url_launcher: ^6.3.0
+  geolocator: ^13.0.2
+  geocoding: ^3.0.0
 
   # 交易闭环
   qr_flutter: ^4.1.0
