@@ -45,10 +45,24 @@ class _PostCardState extends State<PostCard>
     return heights[widget.index % heights.length];
   }
 
+  static int _columnCountForWidth(double width) {
+    if (width < 600) return 2;
+    if (width < 900) return 3;
+    return 4;
+  }
+
+  /// 与首页 Masonry 列数、左右 12、间距 8 一致，用于网络图 decode 尺寸（仍为 cover + 可变高度）
+  double _columnWidth(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    const horizontalPadding = 12.0 * 2;
+    const gap = 8.0;
+    final n = _columnCountForWidth(w);
+    return ((w - horizontalPadding - gap * (n - 1)) / n).clamp(96.0, 520.0);
+  }
+
   (int, int) _memCachePx(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    final w = MediaQuery.sizeOf(context).width;
-    final colW = (w / 2 - 28).clamp(120.0, 420.0);
+    final colW = _columnWidth(context);
     final mw = (colW * dpr).round().clamp(180, kIsWeb ? 900 : 1200);
     final mh = (_imageHeight * dpr).round().clamp(200, kIsWeb ? 1100 : 1600);
     return (mw, mh);

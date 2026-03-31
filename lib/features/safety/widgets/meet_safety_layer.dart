@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/router/app_router.dart';
 import '../providers/meet_safety_session_provider.dart';
 import 'meet_safety_hub_sheet.dart';
 
@@ -18,6 +19,8 @@ class MeetSafetyLayer extends ConsumerStatefulWidget {
 class _MeetSafetyLayerState extends ConsumerState<MeetSafetyLayer>
     with SingleTickerProviderStateMixin {
   late AnimationController _radar;
+  late final GoRouter _router;
+  late final VoidCallback _onRouteChanged;
 
   @override
   void initState() {
@@ -26,10 +29,16 @@ class _MeetSafetyLayerState extends ConsumerState<MeetSafetyLayer>
       vsync: this,
       duration: const Duration(milliseconds: 2400),
     );
+    _router = ref.read(routerProvider);
+    _onRouteChanged = () {
+      if (mounted) setState(() {});
+    };
+    _router.routerDelegate.addListener(_onRouteChanged);
   }
 
   @override
   void dispose() {
+    _router.routerDelegate.removeListener(_onRouteChanged);
     _radar.dispose();
     super.dispose();
   }
@@ -48,7 +57,9 @@ class _MeetSafetyLayerState extends ConsumerState<MeetSafetyLayer>
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(meetSafetySessionProvider);
-    final path = GoRouterState.of(context).uri.path;
+    // 不可使用 GoRouterState.of(context)：本组件在 MaterialApp.router 的 builder 中与 Navigator 并列，
+    // 位于 InheritedGoRouter 之上，context 下没有 GoRouterState。
+    final path = _router.state.uri.path;
 
     _syncRadar(session.active);
 

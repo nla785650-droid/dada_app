@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +13,13 @@ import '../widgets/notification_panel.dart';
 
 /// 小红书式 Tab 选中红线
 const Color _xhsTabRed = Color(0xFFFF2442);
+
+/// 瀑布流列数：<600 手机双列；≥600 平板三列；≥900 大屏四列
+int _masonryCrossAxisCount(double width) {
+  if (width < 600) return 2;
+  if (width < 900) return 3;
+  return 4;
+}
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -206,18 +212,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     return SliverLayoutBuilder(
       builder: (context, constraints) {
-        final viewportW = constraints.crossAxisExtent;
-        const maxContent = 720.0;
-        final contentW = math.min(viewportW, maxContent);
-        final sidePad = math.max(12.0, (viewportW - contentW) / 2);
-        final crossCount = viewportW >= 900 ? 3 : 2;
+        final w = constraints.crossAxisExtent;
+        final crossCount = _masonryCrossAxisCount(w);
 
         return SliverPadding(
-          padding: EdgeInsets.fromLTRB(sidePad, 4, sidePad, 0),
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
           sliver: SliverMasonryGrid.count(
             crossAxisCount: crossCount,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
             itemBuilder: (context, index) {
               final post = postsState.posts[index];
               return PostCard(post: post, index: index);
@@ -563,12 +566,14 @@ class _ShimmerGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    final count = _masonryCrossAxisCount(w);
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       sliver: SliverMasonryGrid.count(
-        crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
+        crossAxisCount: count,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
         itemBuilder: (_, index) => Shimmer.fromColors(
           baseColor: AppTheme.surfaceVariant,
           highlightColor: Colors.white,

@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../pureget_safety_copy.dart';
 import '../providers/safety_location_provider.dart';
@@ -24,7 +24,7 @@ Future<void> showSafetyCenterSheet(BuildContext context, WidgetRef ref) async {
   );
 }
 
-String _pageShareUrl(BuildContext context) {
+String _pageShareUrl(WidgetRef ref) {
   try {
     final base = Uri.base;
     if (base.hasAuthority && base.scheme.startsWith('http')) {
@@ -32,7 +32,7 @@ String _pageShareUrl(BuildContext context) {
     }
   } catch (_) {}
   try {
-    final uri = GoRouterState.of(context).uri;
+    final uri = ref.read(routerProvider).state.uri;
     return 'https://dada.app${uri.path}${uri.hasQuery ? '?${uri.query}' : ''}';
   } catch (_) {
     return 'https://dada.app';
@@ -460,7 +460,7 @@ class _SafetyCenterSheetBodyState extends ConsumerState<_SafetyCenterSheetBody> 
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _pageShareUrl(context),
+                    _pageShareUrl(ref),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -471,7 +471,7 @@ class _SafetyCenterSheetBodyState extends ConsumerState<_SafetyCenterSheetBody> 
                   const SizedBox(height: 10),
                   FilledButton.icon(
                     onPressed: () =>
-                        _copyToClipboard(context, _pageShareUrl(context)),
+                        _copyToClipboard(context, _pageShareUrl(ref)),
                     icon: const Icon(Icons.link_rounded, size: 18),
                     label: const Text('复制当前页面链接'),
                   ),

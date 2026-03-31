@@ -88,11 +88,12 @@ class _GlassNavBar extends StatelessWidget {
           child: SafeArea(
             top: false,
             child: SizedBox(
-              height: 58,
+              height: 64,
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: List.generate(tabs.length, (i) {
                   final isSelected = i == currentIndex;
-                  // 发布中心 Tab（中间）特殊样式：大号 + 渐变圆形按钮
+                  // 发布中心 Tab：中间「+」保持与栏垂直几何中心对齐
                   if (i == 2) {
                     return Expanded(
                       child: Material(
@@ -100,34 +101,37 @@ class _GlassNavBar extends StatelessWidget {
                         child: InkWell(
                           onTap: () => onTap(i),
                           customBorder: const CircleBorder(),
-                          child: Center(
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    AppTheme.primary,
-                                    Color(0xFF818CF8),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppTheme.primary.withValues(
-                                        alpha: isSelected ? 0.5 : 0.25),
-                                    blurRadius: isSelected ? 16 : 8,
-                                    offset: const Offset(0, 4),
+                          child: SizedBox(
+                            height: 64,
+                            child: Center(
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                width: 54,
+                                height: 54,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      AppTheme.primary,
+                                      Color(0xFF818CF8),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
                                   ),
-                                ],
-                              ),
-                              child: Icon(
-                                tabs[i].icon,
-                                size: 26,
-                                color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppTheme.primary.withValues(
+                                          alpha: isSelected ? 0.5 : 0.25),
+                                      blurRadius: isSelected ? 16 : 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  tabs[i].icon,
+                                  size: 28,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           ),
@@ -142,9 +146,10 @@ class _GlassNavBar extends StatelessWidget {
                         onTap: () => onTap(i),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             AnimatedScale(
-                              scale: isSelected ? 1.18 : 1.0,
+                              scale: isSelected ? 1.12 : 1.0,
                               duration: const Duration(milliseconds: 200),
                               child: Icon(
                                 isSelected
@@ -156,14 +161,14 @@ class _GlassNavBar extends StatelessWidget {
                                     : AppTheme.onSurfaceVariant,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 3),
                             AnimatedDefaultTextStyle(
                               duration: const Duration(milliseconds: 200),
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: isSelected ? 11.5 : 10,
                                 fontWeight: isSelected
                                     ? FontWeight.w700
-                                    : FontWeight.w400,
+                                    : FontWeight.w500,
                                 color: isSelected
                                     ? AppTheme.primary
                                     : AppTheme.onSurfaceVariant,

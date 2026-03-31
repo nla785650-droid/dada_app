@@ -66,7 +66,8 @@ class DadaApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       routerConfig: router,
       builder: (context, child) {
-        // 全局字体缩放保护 + 安全中心 FAB
+        // 全局字体缩放；约见守护 / 安全 FAB 与 Navigator 并列，不在 InheritedGoRouter 子树内，
+        // 故二者内部禁止 GoRouterState.of(context)，应使用 routerProvider + routerDelegate 监听。
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
             textScaler: TextScaler.linear(
