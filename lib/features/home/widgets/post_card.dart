@@ -31,6 +31,7 @@ class _PostCardState extends State<PostCard>
   late AnimationController _heartAnim;
   bool _liked = false;
   bool _bookmarked = false;
+  bool _shareActive = false;
   late int _likeCount;
   final List<String> _comments = [];
 
@@ -169,6 +170,10 @@ class _PostCardState extends State<PostCard>
   }
 
   Future<void> _openShareSheet() async {
+    setState(() => _shareActive = true);
+    await Future<void>.delayed(const Duration(milliseconds: 140));
+    if (mounted) setState(() => _shareActive = false);
+    if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -427,7 +432,7 @@ class _PostCardState extends State<PostCard>
               child: _InteractionIconButton(
                 outlineIcon: Icons.send_outlined,
                 filledIcon: Icons.send_rounded,
-                isActive: false,
+                isActive: _shareActive,
                 activeColor: PureGetAuditTheme.accentCyan,
                 label: '',
                 onTap: _openShareSheet,

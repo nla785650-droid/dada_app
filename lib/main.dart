@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/constants/app_constants.dart';
 import 'features/safety/widgets/global_safety_fab.dart';
+import 'features/safety/widgets/meet_safety_layer.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -77,6 +78,7 @@ class DadaApp extends ConsumerWidget {
             fit: StackFit.expand,
             children: [
               child!,
+              const MeetSafetyLayer(),
               const GlobalSafetyFabLayer(),
             ],
           ),

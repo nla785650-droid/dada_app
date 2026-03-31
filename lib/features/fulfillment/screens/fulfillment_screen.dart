@@ -10,6 +10,7 @@ import '../widgets/arrival_verify_sheet.dart';
 import '../widgets/service_timeline.dart';
 import '../widgets/trip_share_card.dart';
 import '../widgets/virtual_dial_button.dart';
+import '../../safety/providers/meet_safety_session_provider.dart';
 import '../../safety/widgets/safety_control_panel.dart';
 import '../../safety/providers/location_provider.dart';
 
@@ -218,6 +219,10 @@ class _FulfillmentScreenState extends ConsumerState<FulfillmentScreen> {
             isProvider: widget.isProvider,
             onAction: () => _handleAction(context, state),
             onCustomerConfirm: () => _handleCustomerConfirm(context, state),
+            onConfirmMeetup: () => _handleConfirmMeetup(context, state),
+            onShareTrip: state.execution == null
+                ? null
+                : () => _showShareCard(context, state.execution!),
           ),
         ),
 
@@ -280,6 +285,10 @@ class _FulfillmentScreenState extends ConsumerState<FulfillmentScreen> {
           .read(fulfillmentProvider.notifier)
           .confirmArrival(arrivedCp.id);
 
+      ref
+          .read(meetSafetySessionProvider.notifier)
+          .completeAfterCustomerArrivalConfirmed();
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -289,6 +298,23 @@ class _FulfillmentScreenState extends ConsumerState<FulfillmentScreen> {
         );
       }
     }
+  }
+
+  void _handleConfirmMeetup(BuildContext context, FulfillmentState state) {
+    final exec = state.execution;
+    if (exec == null) return;
+    ref.read(meetSafetySessionProvider.notifier).activateMeetupGuard(
+          bookingId: exec.bookingId,
+          counterpartyName: exec.providerName,
+        );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('已进入 PureGet 约见守护：返回首页可查看顶栏与 SOS'),
+        backgroundColor: Color(0xFFFF6D00),
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   // ────────────────────────────────────────
@@ -599,21 +625,25 @@ class _EscrowStatusCard extends StatelessWidget {
 // 底部操作栏
 // ══════════════════════════════════════════════════════════════
 
-class _ActionBar extends StatelessWidget {
+class _ActionBar extends ConsumerWidget {
   const _ActionBar({
     required this.state,
     required this.isProvider,
     required this.onAction,
     required this.onCustomerConfirm,
+    required this.onConfirmMeetup,
+    this.onShareTrip,
   });
 
   final FulfillmentState state;
   final bool isProvider;
   final VoidCallback onAction;
   final VoidCallback onCustomerConfirm;
+  final VoidCallback onConfirmMeetup;
+  final VoidCallback? onShareTrip;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final exec = state.execution;
     if (exec == null) return const SizedBox.shrink();
 
@@ -631,7 +661,9 @@ class _ActionBar extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(
             16, 12, 16, MediaQuery.of(context).padding.bottom + 12,
           ),
-          child: isProvider ? _providerActions(context, node, isFinished) : _customerActions(context, exec),
+          child: isProvider
+              ? _providerActions(context, node, isFinished)
+              : _customerActions(context, ref, exec, state),
         ),
       ),
     );
@@ -693,53 +725,94 @@ class _ActionBar extends StatelessWidget {
     );
   }
 
-  Widget _customerActions(BuildContext context, ServiceExecution exec) {
+  Widget _customerActions(
+    BuildContext context,
+    WidgetRef ref,
+    ServiceExecution exec,
+    FulfillmentState state,
+  ) {
     final arrivedCp = exec.checkpointFor(ServiceNode.arrived);
-    final canConfirm = arrivedCp != null && !arrivedCp.confirmedByCustomer;
+    final canConfirmArrival =
+        arrivedCp != null && !arrivedCp.confirmedByCustomer;
 
-    return Row(
+    final meet = ref.watch(meetSafetySessionProvider);
+    final meetForThisBooking =
+        meet.active && meet.bookingId == exec.bookingId;
+    final canConfirmMeetup = (exec.currentNode == ServiceNode.departed ||
+            exec.currentNode == ServiceNode.aboutToDepart) &&
+        !meetForThisBooking;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        if (canConfirm)
-          Expanded(
-            flex: 3,
+        if (canConfirmMeetup) ...[
+          SizedBox(
+            width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: onCustomerConfirm,
-              icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
-              label: const Text('确认达人已到达'),
+              onPressed: state.isSubmitting ? null : onConfirmMeetup,
+              icon: const Icon(Icons.how_to_reg_rounded, size: 20),
+              label: const Text('确认见面'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.success,
+                backgroundColor: const Color(0xFFFF3D00),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
                 elevation: 0,
               ),
             ),
-          )
-        else
-          Expanded(
-            flex: 3,
-            child: OutlinedButton.icon(
-              onPressed: () => _openChat(context),
-              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-              label: const Text('联系达人'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          const SizedBox(height: 10),
+        ],
+        Row(
+          children: [
+            if (canConfirmArrival)
+              Expanded(
+                flex: 3,
+                child: ElevatedButton.icon(
+                  onPressed: onCustomerConfirm,
+                  icon: const Icon(Icons.check_circle_outline_rounded,
+                      size: 18),
+                  label: const Text('确认达人已到达'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                flex: 3,
+                child: OutlinedButton.icon(
+                  onPressed: () => _openChat(context),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+                  label: const Text('联系达人'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: OutlinedButton.icon(
+                onPressed: onShareTrip,
+                icon: const Icon(Icons.share_rounded, size: 16),
+                label: const Text('分享行程'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
               ),
             ),
-          ),
-        const SizedBox(width: 12),
-        Expanded(
-          flex: 2,
-          child: OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.share_rounded, size: 16),
-            label: const Text('分享行程'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-          ),
+          ],
         ),
       ],
     );

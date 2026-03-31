@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -116,6 +117,15 @@ class _ArrivalVerifySheetState extends State<ArrivalVerifySheet>
       );
 
       await ctrl.initialize();
+
+      // 禁止 setFlashMode / setTorchMode；仅移动端尝试自动曝光/对焦，避免 torchModeNotSupported
+      if (!kIsWeb) {
+        try {
+          await ctrl.setExposureMode(ExposureMode.auto);
+          await ctrl.setFocusMode(FocusMode.auto);
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() {
           _controller = ctrl;

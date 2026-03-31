@@ -265,7 +265,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   const SizedBox(width: 8),
                   // 发送按钮
                   GestureDetector(
-                    onTap: state.isSending ? null : _sendText,
+                    onTap: state.isSending ? null : () => _sendText(),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       width: 38,
@@ -297,9 +297,60 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  void _sendText() {
+  static const _meetRiskTokens = [
+    '暴力', '打人', '砍人', '现金', '转账', '汇款', '包夜', '裸聊', '高利贷',
+       '毒品', '下药', '胁迫', '私了费',
+  ];
+
+  bool _textHasMeetRisk(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return false;
+    return _meetRiskTokens.any((k) => t.contains(k));
+  }
+
+  Future<void> _sendText() async {
     final text = _textController.text;
     if (text.trim().isEmpty) return;
+
+    if (_textHasMeetRisk(text)) {
+      final force = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Color(0xFFFF6D00)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'PureGet · 异常沟通提醒',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            '检测到异常沟通（暴力、资金交易等敏感语境），建议中止行程。',
+            style: TextStyle(height: 1.45),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('返回修改'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Color(0xFFE64A19),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('仍要发送'),
+            ),
+          ],
+        ),
+      );
+      if (force != true || !mounted) return;
+    }
+
     _textController.clear();
     _notifier.sendText(text);
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../providers/meet_safety_session_provider.dart';
 import 'safety_center_sheet.dart';
 
 /// 全局安全入口（登录 / 注册 / 实人认证流程中隐藏）
@@ -19,6 +20,9 @@ class GlobalSafetyFabLayer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final path = GoRouterState.of(context).uri.path;
     if (_hidePaths.contains(path)) {
+      return const SizedBox.shrink();
+    }
+    if (ref.watch(meetSafetySessionProvider).active) {
       return const SizedBox.shrink();
     }
 

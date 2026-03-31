@@ -300,7 +300,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
     ref.read(likesProvider.notifier).like(summary);
     HapticFeedback.mediumImpact();
 
-    if (forceTripleMatch) {
+    final luckyMatch =
+        forceTripleMatch || math.Random().nextDouble() < 0.42;
+    if (luckyMatch) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         showItsAMatchDialog(context, ref, profile: profile);
@@ -347,6 +349,8 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
 
         return Scaffold(
           backgroundColor: Colors.black,
+          extendBody: true,
+          extendBodyBehindAppBar: true,
           body: Stack(
             fit: StackFit.expand,
             children: [
@@ -381,6 +385,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                 child: SafeArea(
                   bottom: false,
                   child: MatchTabHeader(
+                    immersive: true,
                     selectedTab: _matchMainTab,
                     onTabChanged: _onMatchMainTab,
                     filterState: _filterState,

@@ -16,10 +16,11 @@ Future<void> showItsAMatchDialog(
   return showGeneralDialog<void>(
     context: context,
     barrierDismissible: false,
-    barrierColor: Colors.black.withValues(alpha: 0.92),
+    barrierColor: Colors.black.withValues(alpha: 0.94),
     transitionDuration: const Duration(milliseconds: 380),
     pageBuilder: (ctx, anim1, anim2) {
-      return _ItsAMatchScaffold(
+      return SizedBox.expand(
+        child: _ItsAMatchScaffold(
         profile: profile,
         onMessage: () {
           ref.read(chatThreadsProvider.notifier).addOrBumpMatchThread(
@@ -40,6 +41,7 @@ Future<void> showItsAMatchDialog(
           );
         },
         onContinue: () => Navigator.of(ctx).pop(),
+        ),
       );
     },
     transitionBuilder: (ctx, anim, _, child) {
@@ -64,14 +66,24 @@ class _ItsAMatchScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Material(
-        color: Colors.transparent,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            children: [
-              const SizedBox(height: 48),
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF2D0A1E), Color(0xFF0D0D0D)],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Column(
+              children: [
+                const SizedBox(height: 36),
               ShaderMask(
                 shaderCallback: (bounds) => const LinearGradient(
                   colors: [Color(0xFFFF4081), Color(0xFFFF9100)],
@@ -150,8 +162,9 @@ class _ItsAMatchScaffold extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 32),
-            ],
+                const SizedBox(height: 32),
+              ],
+            ),
           ),
         ),
       ),

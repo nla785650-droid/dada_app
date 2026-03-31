@@ -10,6 +10,7 @@ enum MatchMainTab { recommend, nearby }
 class MatchTabHeader extends StatelessWidget {
   const MatchTabHeader({
     super.key,
+    this.immersive = false,
     required this.selectedTab,
     required this.onTabChanged,
     required this.filterState,
@@ -19,6 +20,8 @@ class MatchTabHeader extends StatelessWidget {
     required this.nearbyCityLabel,
   });
 
+  /// 沉浸式划卡：弱化顶栏面积与背景，让卡片更占满视野（非传统 AppBar）
+  final bool immersive;
   final MatchMainTab selectedTab;
   final ValueChanged<MatchMainTab> onTabChanged;
   final DiscoverFilterState filterState;
@@ -36,14 +39,20 @@ class MatchTabHeader extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.55),
-            Colors.black.withValues(alpha: 0.12),
-            Colors.transparent,
-          ],
+          colors: immersive
+              ? [
+                  Colors.black.withValues(alpha: 0.22),
+                  Colors.black.withValues(alpha: 0.06),
+                  Colors.transparent,
+                ]
+              : [
+                  Colors.black.withValues(alpha: 0.55),
+                  Colors.black.withValues(alpha: 0.12),
+                  Colors.transparent,
+                ],
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(8, 4, 12, 12),
+      padding: EdgeInsets.fromLTRB(8, immersive ? 0 : 4, 12, immersive ? 4 : 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -121,20 +130,21 @@ class MatchTabHeader extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 2),
-          Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: Text(
-              selectedTab == MatchMainTab.nearby
-                  ? '同城优先 · $nearbyCityLabel'
-                  : '右滑喜欢 · 左滑无感',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Colors.white.withValues(alpha: 0.75),
+          SizedBox(height: immersive ? 0 : 2),
+          if (!immersive)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text(
+                selectedTab == MatchMainTab.nearby
+                    ? '同城优先 · $nearbyCityLabel'
+                    : '右滑喜欢 · 左滑无感',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white.withValues(alpha: 0.75),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
