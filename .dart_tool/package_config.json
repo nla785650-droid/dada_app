@@ -801,9 +801,9 @@
     },
     {
       "name": "shared_preferences",
-      "rootUri": "file:///C:/Users/86136/AppData/Local/Pub/Cache/hosted/pub.dev/shared_preferences-2.5.4",
+      "rootUri": "file:///C:/Users/86136/AppData/Local/Pub/Cache/hosted/pub.dev/shared_preferences-2.5.3",
       "packageUri": "lib/",
-      "languageVersion": "3.9"
+      "languageVersion": "3.5"
     },
     {
       "name": "shared_preferences_android",
